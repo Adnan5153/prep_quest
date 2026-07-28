@@ -1,0 +1,16 @@
+{
+  "permissions": {
+    "allow": [
+      "Bash(wc -l lib/core/widgets/ai/ai_history_section.dart lib/core/widgets/ai/ai_history_section/*.dart lib/core/widgets/ai/ai_history_section/widgets/*.dart)",
+      "Bash(flutter analyze:*)",
+      "Bash(dart analyze:*)",
+      "Bash(ls:*)",
+      "Bash(powershell -Command \"Get-ChildItem -Path 'D:\\\\Adnan\\\\Android\\\\BDAPPS\\\\prep_quest\\\\lib\\\\features\\\\widget_builder\\\\' -Recurse\")",
+      "Bash(powershell -Command \"Get-ChildItem -Path 'D:\\\\Adnan\\\\Android\\\\BDAPPS\\\\prep_quest\\\\lib\\\\features\\\\widget_builder\\\\presentation\\\\utils' -Recurse -ErrorAction SilentlyContinue\")",
+      "Bash(powershell -Command \"Get-ChildItem -Path 'D:\\\\Adnan\\\\Android\\\\BDAPPS\\\\prep_quest\\\\lib\\\\features\\\\widget_builder\\\\presentation\\\\palette\\\\sections' -Recurse -ErrorAction SilentlyContinue\")",
+      "Bash(powershell -Command \"$paths = @\\('D:\\\\Adnan\\\\Android\\\\BDAPPS\\\\prep_quest\\\\lib\\\\features\\\\widget_builder\\\\presentation\\\\utils','D:\\\\Adnan\\\\Android\\\\BDAPPS\\\\prep_quest\\\\lib\\\\features\\\\widget_builder\\\\presentation\\\\palette\\\\sections'\\); foreach \\($p in $paths\\) { Write-Host \\(\\\\\"PATH: \\\\\" + $p\\); if \\(Test-Path $p\\) { Get-ChildItem -Force $p | Select-Object Name } else { Write-Host \\\\\"\\(missing\\)\\\\\" } }\")",
+      "Bash(powershell -Command \"Get-ChildItem 'D:\\\\Adnan\\\\Android\\\\BDAPPS\\\\prep_quest\\\\lib\\\\core\\\\widgets\\\\ai\\\\ai_history_section' -Recurse | Select-Object Name,PSIsContainer,Length\")",
+      "Bash(powershell -Command \"Test-Path 'D:\\\\Adnan\\\\Android\\\\BDAPPS\\\\prep_quest\\\\lib\\\\features\\\\widget_builder\\\\presentation\\\\utils'; Test-Path 'D:\\\\Adnan\\\\Android\\\\BDAPPS\\\\prep_quest\\\\lib\\\\features\\\\widget_builder\\\\presentation\\\\palette\\\\sections'\")"
+    ]
+  }
+}

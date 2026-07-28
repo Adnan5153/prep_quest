@@ -1,0 +1,316 @@
+REST API · v1
+Quiz API Documentation
+Public, open REST API for managing quiz categories and questions. No authentication required.
+
+Base URL
+https://sadiks-quiz-apihub.lovable.app/api/v1
+
+No auth required
+JSON · CSV · XLSX
+Success envelope
+200
+{
+  "success": true,
+  "message": "...",
+  "data": { ... },
+  "pagination": { "page": 1, "totalPages": 5, ... }
+}
+
+Error envelope
+4xx · 5xx
+{
+  "success": false,
+  "message": "Validation failed",
+  "errors": [ { "path": "name", "message": "Required" } ]
+}
+
+GET
+/api/v1/categories
+
+List all categories. Supports search and pagination.
+
+Query parameters
+search	Filter by name (substring, case-insensitive)
+page	Page number (default 1)
+limit	Page size (default 20, max 100)
+Sample response
+{
+  "success": true,
+  "pagination": {
+    "page": 1,
+    "limit": 20,
+    "totalItems": 1,
+    "totalPages": 1,
+    "hasNext": false,
+    "hasPrevious": false
+  },
+  "data": [
+    {
+      "id": 1,
+      "name": "General Knowledge",
+      "description": "General knowledge questions"
+    }
+  ]
+}
+
+POST
+/api/v1/categories
+
+Create a new category.
+
+Request body
+{
+  "name": "General Knowledge",
+  "description": "General knowledge questions"
+}
+
+Sample response
+{
+  "success": true,
+  "message": "Category created",
+  "data": {
+    "id": 1,
+    "name": "General Knowledge"
+  }
+}
+
+GET
+/api/v1/categories/{id}
+
+Get a single category by id.
+
+Sample response
+{
+  "success": true,
+  "data": {
+    "id": 1,
+    "name": "General Knowledge",
+    "description": "..."
+  }
+}
+
+PUT
+/api/v1/categories/{id}
+
+Update a category.
+
+Request body
+{
+  "name": "Updated",
+  "description": "Optional"
+}
+
+Sample response
+{
+  "success": true,
+  "message": "Category updated",
+  "data": {
+    "id": 1,
+    "name": "Updated"
+  }
+}
+
+DELETE
+/api/v1/categories/{id}
+
+Delete a category and all its questions.
+
+Sample response
+{
+  "success": true,
+  "message": "Category deleted"
+}
+
+GET
+/api/v1/categories/{categoryId}/questions
+
+Paginated questions for a category. Supports search and sort.
+
+Query parameters
+page	Page number (default 1)
+limit	Page size (default 20, max 100)
+search	Substring search inside question text
+sort	id | mark | created_at | updated_at
+order	asc | desc
+Sample response
+{
+  "success": true,
+  "pagination": {
+    "page": 1,
+    "limit": 20,
+    "totalItems": 1,
+    "totalPages": 1,
+    "hasNext": false,
+    "hasPrevious": false
+  },
+  "data": [
+    {
+      "id": 1,
+      "question": "What is Flutter?",
+      "options": [
+        "Framework",
+        "Database",
+        "Browser",
+        "Operating System"
+      ],
+      "answerIndex": 0,
+      "mark": 10
+    }
+  ]
+}
+
+POST
+/api/v1/categories/{categoryId}/questions
+
+Create a question in a category.
+
+Request body
+{
+  "question": "What is Flutter?",
+  "options": [
+    "Framework",
+    "Database",
+    "Browser",
+    "Operating System"
+  ],
+  "answerIndex": 0,
+  "mark": 10
+}
+
+Sample response
+{
+  "success": true,
+  "message": "Question created",
+  "data": {
+    "id": 1
+  }
+}
+
+GET
+/api/v1/categories/{categoryId}/questions/random
+
+Get random questions from a category.
+
+Query parameters
+count	How many questions (default 10, max 100)
+Sample response
+{
+  "success": true,
+  "data": [
+    {
+      "id": 1,
+      "question": "What is Flutter?",
+      "options": [
+        "Framework",
+        "..."
+      ],
+      "answerIndex": 0,
+      "mark": 10
+    }
+  ]
+}
+
+GET
+/api/v1/questions/{id}
+
+Get a single question by id.
+
+Sample response
+{
+  "success": true,
+  "data": {
+    "id": 1,
+    "categoryId": 1,
+    "question": "..."
+  }
+}
+
+PUT
+/api/v1/questions/{id}
+
+Update a question.
+
+Request body
+{
+  "question": "...",
+  "options": [
+    "A",
+    "B"
+  ],
+  "answerIndex": 0,
+  "mark": 10
+}
+
+Sample response
+{
+  "success": true,
+  "message": "Question updated"
+}
+
+DELETE
+/api/v1/questions/{id}
+
+Delete a question.
+
+Sample response
+{
+  "success": true,
+  "message": "Question deleted"
+}
+
+POST
+/api/v1/categories/{categoryId}/questions/bulk-delete
+
+Delete multiple questions by id.
+
+Request body
+{
+  "ids": [
+    1,
+    2,
+    3
+  ]
+}
+
+Sample response
+{
+  "success": true,
+  "message": "Deleted 3 questions"
+}
+
+POST
+/api/v1/categories/{categoryId}/questions/import
+
+Bulk-import questions. Body is a JSON array of questions.
+
+Request body
+[
+  {
+    "question": "What is Flutter?",
+    "options": [
+      "Framework",
+      "Database"
+    ],
+    "answerIndex": 0,
+    "mark": 10
+  }
+]
+
+Sample response
+{
+  "success": true,
+  "message": "Imported 1 questions",
+  "data": {
+    "inserted": 1
+  }
+}
+
+GET
+/api/v1/categories/{categoryId}/questions/export
+
+Export all questions in a category. Returns JSON, CSV, or XLSX file.
+
+Query parameters
+format	json | csv | xlsx (default json)
+Sample response
+File download

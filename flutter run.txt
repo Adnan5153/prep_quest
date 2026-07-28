@@ -1,0 +1,2 @@
+  flutter run \
+    --dart-define=GEMINI_API_KEY=your-key

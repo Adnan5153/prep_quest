@@ -1,0 +1,465 @@
+flowchart TB
+
+A([PrepQuest Development])
+
+%% ------------------------------------------------
+
+subgraph Phase1["Phase 1 — Core Infrastructure"]
+
+A1["Routing"]
+A2["Navigation"]
+A3["App Theme"]
+A4["Responsive System"]
+A5["Design Tokens"]
+A6["Global Error Handling"]
+A7["Loading States"]
+A8["Empty States"]
+A9["Reusable Dialogs"]
+A10["Reusable Bottom Sheets"]
+A11["Snackbar System"]
+A12["Animation Framework"]
+
+A1-->A2-->A3-->A4-->A5-->A6-->A7-->A8-->A9-->A10-->A11-->A12
+
+end
+
+%% ------------------------------------------------
+
+subgraph Phase2["Phase 2 — Authentication"]
+
+B1["Splash"]
+B2["Welcome"]
+B3["Login"]
+B4["Register"]
+B5["Forgot Password"]
+B6["OTP Verification"]
+B7["Email Verification"]
+B8["Complete Profile"]
+
+B1-->B2-->B3-->B4-->B5-->B6-->B7-->B8
+
+end
+
+%% ------------------------------------------------
+
+subgraph Phase3["Phase 3 — User Profile"]
+
+C1["Avatar"]
+C2["Identity"]
+C3["Exam Goal"]
+C4["Language"]
+C5["XP"]
+C6["Coins"]
+C7["Energy"]
+C8["Streak"]
+C9["Badges"]
+C10["Rank"]
+
+C1-->C2-->C3-->C4-->C5-->C6-->C7-->C8-->C9-->C10
+
+end
+
+%% ------------------------------------------------
+
+subgraph Phase4["Phase 4 — Playground"]
+
+D1["World Rendering"]
+D2["Level States"]
+D3["Boss Gates"]
+D4["Buildings"]
+D5["Rewards"]
+D6["Animations"]
+D7["Camera"]
+D8["Progress Sync"]
+
+D1-->D2-->D3-->D4-->D5-->D6-->D7-->D8
+
+end
+
+%% ------------------------------------------------
+
+subgraph Phase5["Lessons"]
+
+E1["Lesson Overview"]
+E2["Lesson Detail"]
+E3["Reading Mode"]
+E4["Examples"]
+E5["Summary"]
+
+E1-->E2-->E3-->E4-->E5
+
+end
+
+%% ------------------------------------------------
+
+subgraph Phase6["Quiz Engine"]
+
+F1["Question"]
+F2["Timer"]
+F3["Options"]
+F4["Answer Check"]
+F5["Explanation"]
+F6["Bookmark"]
+F7["Report"]
+F8["Skip"]
+F9["Hint"]
+F10["AI Hint"]
+
+F1-->F2-->F3-->F4-->F5-->F6-->F7-->F8-->F9-->F10
+
+end
+
+%% ------------------------------------------------
+
+subgraph Phase7["Quiz Results"]
+
+G1["Score"]
+G2["XP"]
+G3["Coins"]
+G4["Stars"]
+G5["Rank"]
+G6["Accuracy"]
+G7["Time Analysis"]
+G8["Weak Topics"]
+G9["Retry"]
+
+G1-->G2-->G3-->G4-->G5-->G6-->G7-->G8-->G9
+
+end
+
+%% ------------------------------------------------
+
+subgraph Phase8["Review"]
+
+H1["Correct"]
+H2["Wrong"]
+H3["Bookmarks"]
+H4["Recent"]
+H5["AI Explanation"]
+
+H1-->H2-->H3-->H4-->H5
+
+end
+
+%% ------------------------------------------------
+
+subgraph Phase9["AI"]
+
+I1["AI Hint"]
+I2["AI Explanation"]
+I3["Simplification"]
+I4["Flashcards"]
+I5["Summary"]
+I6["Study Plan"]
+I7["Question Generator"]
+
+I1-->I2-->I3-->I4-->I5-->I6-->I7
+
+end
+
+%% ------------------------------------------------
+
+subgraph Phase10["Rewards"]
+
+J1["XP"]
+J2["Coins"]
+J3["Badges"]
+J4["Reward Chest"]
+J5["Unlock Animation"]
+J6["Daily Rewards"]
+
+J1-->J2-->J3-->J4-->J5-->J6
+
+end
+
+%% ------------------------------------------------
+
+subgraph Phase11["Daily Missions"]
+
+K1["Daily"]
+K2["Weekly"]
+K3["Monthly"]
+K4["Progress"]
+K5["Rewards"]
+
+K1-->K2-->K3-->K4-->K5
+
+end
+
+%% ------------------------------------------------
+
+subgraph Phase12["Streak"]
+
+L1["Daily Login"]
+L2["Counter"]
+L3["Calendar"]
+L4["Recovery"]
+L5["Bonus"]
+
+L1-->L2-->L3-->L4-->L5
+
+end
+
+%% ------------------------------------------------
+
+subgraph Phase13["Leaderboards"]
+
+M1["Friends"]
+M2["University"]
+M3["National"]
+M4["Weekly"]
+M5["Seasonal"]
+
+M1-->M2-->M3-->M4-->M5
+
+end
+
+%% ------------------------------------------------
+
+subgraph Phase14["Notifications"]
+
+N1["Reminders"]
+N2["Mission Updates"]
+N3["Rewards"]
+N4["AI Suggestions"]
+N5["Announcements"]
+
+N1-->N2-->N3-->N4-->N5
+
+end
+
+%% ------------------------------------------------
+
+subgraph Phase15["Search"]
+
+O1["Lessons"]
+O2["Questions"]
+O3["Topics"]
+O4["Books"]
+O5["AI History"]
+
+O1-->O2-->O3-->O4-->O5
+
+end
+
+%% ------------------------------------------------
+
+subgraph Phase16["Bookmarks"]
+
+P1["Questions"]
+P2["Lessons"]
+P3["AI"]
+P4["Notes"]
+
+P1-->P2-->P3-->P4
+
+end
+
+%% ------------------------------------------------
+
+subgraph Phase17["Notes"]
+
+Q1["Personal"]
+Q2["Highlights"]
+Q3["AI Notes"]
+
+Q1-->Q2-->Q3
+
+end
+
+%% ------------------------------------------------
+
+subgraph Phase18["Statistics"]
+
+R1["XP"]
+R2["Accuracy"]
+R3["Study Time"]
+R4["Weak Subjects"]
+R5["Strong Subjects"]
+R6["Charts"]
+
+R1-->R2-->R3-->R4-->R5-->R6
+
+end
+
+%% ------------------------------------------------
+
+subgraph Phase19["Profile"]
+
+S1["Achievements"]
+S2["Rank"]
+S3["Statistics"]
+S4["Subscription"]
+S5["Settings"]
+
+S1-->S2-->S3-->S4-->S5
+
+end
+
+%% ------------------------------------------------
+
+subgraph Phase20["Settings"]
+
+T1["Theme"]
+T2["Language"]
+T3["Notifications"]
+T4["Privacy"]
+T5["Accessibility"]
+T6["About"]
+
+T1-->T2-->T3-->T4-->T5-->T6
+
+end
+
+%% ------------------------------------------------
+
+subgraph Phase21["Subscription"]
+
+U1["Plans"]
+U2["Comparison"]
+U3["Purchase"]
+U4["Restore"]
+
+U1-->U2-->U3-->U4
+
+end
+
+%% ------------------------------------------------
+
+subgraph Phase22["Offline"]
+
+V1["Download Lessons"]
+V2["Download Questions"]
+V3["Offline Study"]
+V4["Sync"]
+
+V1-->V2-->V3-->V4
+
+end
+
+%% ------------------------------------------------
+
+subgraph Phase23["Backend"]
+
+W1["Firestore"]
+W2["Authentication"]
+W3["Cloud Storage"]
+W4["Remote Config"]
+W5["Analytics"]
+W6["Crashlytics"]
+
+W1-->W2-->W3-->W4-->W5-->W6
+
+end
+
+%% ------------------------------------------------
+
+subgraph Phase24["Optimization"]
+
+X1["Rendering"]
+X2["Caching"]
+X3["Animations"]
+X4["Memory"]
+X5["Repaint Boundaries"]
+
+X1-->X2-->X3-->X4-->X5
+
+end
+
+%% ------------------------------------------------
+
+subgraph Phase25["Testing"]
+
+Y1["Widget"]
+Y2["Repository"]
+Y3["Provider"]
+Y4["Integration"]
+Y5["Golden"]
+
+Y1-->Y2-->Y3-->Y4-->Y5
+
+end
+
+%% ------------------------------------------------
+
+subgraph Phase26["Documentation"]
+
+Z1["Architecture"]
+Z2["API"]
+Z3["Widgets"]
+Z4["Folder Structure"]
+Z5["Developer Guide"]
+
+Z1-->Z2-->Z3-->Z4-->Z5
+
+end
+
+%% ------------------------------------------------
+
+subgraph Phase27["Replace Mock Data"]
+
+AA1["Repositories"]
+AA2["Remote Models"]
+AA3["Serialization"]
+AA4["Production Data"]
+
+AA1-->AA2-->AA3-->AA4
+
+end
+
+%% ------------------------------------------------
+
+subgraph Phase28["Freeze Architecture"]
+
+AB1["Stable Repository Contracts"]
+AB2["Rendering Engine"]
+AB3["Data-driven Screens"]
+AB4["Serialization Freeze"]
+
+AB1-->AB2-->AB3-->AB4
+
+end
+
+%% ------------------------------------------------
+
+subgraph Phase29["Flutter Web Admin Panel"]
+
+AC1["World Editor"]
+AC2["Content Management"]
+AC3["Publishing"]
+AC4["Versioning"]
+AC5["Live Preview"]
+
+AC1-->AC2-->AC3-->AC4-->AC5
+
+end
+
+A --> Phase1
+Phase1 --> Phase2
+Phase2 --> Phase3
+Phase3 --> Phase4
+Phase4 --> Phase5
+Phase5 --> Phase6
+Phase6 --> Phase7
+Phase7 --> Phase8
+Phase8 --> Phase9
+Phase9 --> Phase10
+Phase10 --> Phase11
+Phase11 --> Phase12
+Phase12 --> Phase13
+Phase13 --> Phase14
+Phase14 --> Phase15
+Phase15 --> Phase16
+Phase16 --> Phase17
+Phase17 --> Phase18
+Phase18 --> Phase19
+Phase19 --> Phase20
+Phase20 --> Phase21
+Phase21 --> Phase22
+Phase22 --> Phase23
+Phase23 --> Phase24
+Phase24 --> Phase25
+Phase25 --> Phase26
+Phase26 --> Phase27
+Phase27 --> Phase28
+Phase28 --> Phase29

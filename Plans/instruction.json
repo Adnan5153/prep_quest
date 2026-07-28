@@ -1,0 +1,102 @@
+{
+  "projectName": "BCS Booster AI / Prep Quest",
+  "version": "1.0",
+  "purpose": "This instruction file defines how the coding agent should build, extend, and refactor the Flutter/Firebase app while preserving the existing architecture, consistency, and maintainability.",
+  "primaryMission": [
+    "Implement features by following the existing repository structure instead of inventing a new pattern.",
+    "Keep the app modular, scalable, and easy to maintain.",
+    "Ensure UI, business logic, data access, and state management remain clearly separated."
+  ],
+  "corePrinciples": [
+    "Do not mix UI code and business logic in the same file.",
+    "Always place screen/view code in presentation-layer files and move logic to dedicated application, domain, or data-layer files.",
+    "Keep the codebase clean, predictable, and consistent with the planned feature-first structure.",
+    "Prioritize reuse over duplication.",
+    "Prefer small, focused changes over large rewrites.",
+    "Respect the existing folder structure and only add code inside the appropriate dedicated folders."
+  ],
+  "architectureRules": {
+    "featureFirstStructure": "Use the existing feature-first architecture under lib/features. Each feature should be organized around its own responsibility and should not spill into unrelated modules.",
+    "uiAndLogicSeparation": {
+      "rule": "Never place business logic, state management, API calls, validation, repository access, or navigation decisions directly inside a screen/widget file unless the file is explicitly a controller or view-model.",
+      "uiFiles": "Use files such as screens, widgets, and presentation components for rendering only.",
+      "logicFiles": "Use files such as controllers, providers, services, repositories, use cases, models, and state classes for logic and data flow.",
+      "widgetRule": "If a screen needs a reusable widget, create a dedicated widget file in the relevant widget folder or shared widget folder rather than embedding the widget directly inside the screen file."
+    },
+    "folderGuidance": {
+      "screens": "lib/features/<feature>/presentation/screens",
+      "widgets": "lib/features/<feature>/presentation/widgets for feature-specific widgets or lib/shared/widgets for reusable app-wide widgets",
+      "controllers": "lib/features/<feature>/presentation/controllers when a dedicated controller is needed",
+      "state": "lib/features/<feature>/presentation/providers for feature state and UI state management",
+      "services": "lib/core/services for shared app services; place feature-specific data access under lib/features/<feature>/data/datasources",
+      "repositories": "lib/features/<feature>/data/repositories",
+      "models": "lib/features/<feature>/data/models for data models and lib/features/<feature>/domain/entities for domain entities",
+      "routing": "lib/router.dart for app-wide navigation and feature-specific navigation helpers only when necessary",
+      "providers": "lib/features/<feature>/presentation/providers for feature providers and lib/core/providers for shared app-level providers"
+    }
+  },
+  "constantsAndStyleRules": {
+    "noHardcodedColors": "Do not hardcode colors directly inside widgets, screens, or logic files. Use lib/core/theme/app_colors.dart.",
+    "noHardcodedFonts": "Do not hardcode font styles directly in UI code. Use lib/core/theme/app_fonts.dart.",
+    "noHardcodedIcons": "Do not use raw icon literals without centralizing them. Use lib/core/constants/app_icons.dart.",
+    "noHardcodedStrings": "Do not hardcode user-visible strings inside widgets or screens. Use lib/core/localization/app_strings.dart.",
+    "noHardcodedSizes": "Do not hardcode dimensions, padding, margins, icon sizes, or component sizes. Use lib/core/constants/app_sizes.dart.",
+    "noHardcodedSpacing": "Do not hardcode spacing values. Use lib/core/theme/app_spacing.dart.",
+    "noHardcodedAssets": "Do not reference images, illustrations, or asset paths directly in code. Use lib/core/constants/app_assets.dart.",
+    "noHardcodedRadius": "Do not hardcode border radius values. Use lib/core/theme/app_radius.dart.",
+    "createMissingConstants": "If a required token does not exist yet, create it in the appropriate central file rather than injecting a raw value locally."
+  },
+  "agentWorkflow": {
+    "step1": "Read the relevant planning files first: Plans/BCS_Booster_AI_Agent_Prompt.md, Plans/BCS_Booster_AI_Agent_Implementation_Steps.md, Plans/design.md, Plans/widgetdesign.md, and Plans/appflow.md.",
+    "step2": "Inspect the existing codebase structure and find the closest feature, screen, widget, provider, or service that matches the requested implementation.",
+    "step3": "Understand the current architecture pattern before editing anything. Reuse existing providers, services, route setup, and UI conventions.",
+    "step4": "Split the task into UI work and logic work. Create or update presentation files for rendering and dedicated logic files for behavior and state.",
+    "step5": "Place new reusable widgets in the correct widget folder and keep screen files focused on composition and layout.",
+    "step6": "Centralize all style values and strings in the designated constants files.",
+    "step7": "Make changes scoped to the feature or shared layer that owns the responsibility. Do not modify unrelated modules unless required for integration.",
+    "step8": "Verify the implementation by checking for compile issues, missing imports, and consistency with the project pattern."
+  },
+  "implementationGuidelines": [
+    "Always inspect similar existing features before creating a new one.",
+    "Prefer small, composable widgets over large monolithic screen files.",
+    "If a widget is only used by one screen, keep it near that screen unless it is clearly reusable across the app.",
+    "Use existing routing, dependency injection, and state-management patterns rather than introducing new ones unless the project already expects them.",
+    "Maintain naming consistency with the rest of the project.",
+    "Write code that is readable, testable, and easy for another agent to extend later.",
+    "Avoid magic numbers, inline styles, and duplicated UI fragments."
+  ],
+  "qualityExpectations": {
+    "maintainability": "Code should be easy to follow and should clearly separate responsibilities.",
+    "consistency": "UI should look and behave consistently with the design guide and existing app standards.",
+    "scalability": "The implementation should support future expansion without turning into a tightly coupled file.",
+    "safety": "Avoid introducing runtime errors, missing imports, or broken navigation flows."
+  },
+  "forbiddenPatterns": [
+    "Do not place API calls inside a widget file.",
+    "Do not place controller logic inside the screen UI file.",
+    "Do not hardcode colors, strings, images, dimensions, spacing, border radius, or icons.",
+    "Do not create a giant screen file containing both layout and business logic.",
+    "Do not add ad-hoc widgets directly inside a screen file when a dedicated widget file is appropriate.",
+    "Do not create new folders randomly; use the existing project structure.",
+    "Do not ignore existing providers, services, or router patterns.",
+    "Do not implement features without checking how similar features are structured."
+  ],
+  "bestPracticesForBestOutput": [
+    "Start by understanding the requirement deeply before coding.",
+    "Read the related files, not just the target file.",
+    "Follow the existing naming conventions and architecture language used by the project.",
+    "Keep code modular and focused on one responsibility per file.",
+    "Prefer composition over duplication.",
+    "Make the implementation production-friendly, not just functional.",
+    "Leave the codebase easier to maintain than you found it.",
+    "Document important architectural decisions only if the project already uses documentation for that purpose."
+  ],
+  "agentBehaviorRules": [
+    "If unsure, inspect similar code before changing anything.",
+    "When implementing a screen, create or update the UI file, the widget files, and the logic/state files separately.",
+    "When implementing a feature, wire it through the correct layer instead of bypassing the architecture.",
+    "When the request is large, break it into smaller, verifiable steps.",
+    "Before finishing, review the diff for accidental mixing of UI and logic or inconsistent hardcoded values."
+  ],
+  "finalDeliverableStandard": "The agent should produce code that is organized, clean, modular, architecture-aligned, and ready for integration into the existing Flutter/Firebase project."
+}
