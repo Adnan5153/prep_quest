@@ -16,6 +16,11 @@ class LeaderboardEntryModel {
     required this.badges,
     required this.isCurrentUser,
     required this.isPremium,
+    this.accuracyPercent = 0,
+    this.completedCategories = 0,
+    this.completedMissions = 0,
+    this.score = 0,
+    this.seasonId = 'lifetime',
   });
 
   factory LeaderboardEntryModel.fromJson(Map<String, dynamic> json) {
@@ -36,6 +41,13 @@ class LeaderboardEntryModel {
           rawBadges.map((dynamic e) => e.toString()).toList(growable: false),
       isCurrentUser: (json['isCurrentUser'] as bool?) ?? false,
       isPremium: (json['isPremium'] as bool?) ?? false,
+      accuracyPercent: (json['accuracyPercent'] as num?)?.toInt() ?? 0,
+      completedCategories:
+          (json['completedCategories'] as num?)?.toInt() ?? 0,
+      completedMissions:
+          (json['completedMissions'] as num?)?.toInt() ?? 0,
+      score: (json['score'] as num?)?.toInt() ?? 0,
+      seasonId: (json['seasonId'] as String?) ?? 'lifetime',
     );
   }
 
@@ -54,6 +66,11 @@ class LeaderboardEntryModel {
       'badges': badges,
       'isCurrentUser': isCurrentUser,
       'isPremium': isPremium,
+      'accuracyPercent': accuracyPercent,
+      'completedCategories': completedCategories,
+      'completedMissions': completedMissions,
+      'score': score,
+      'seasonId': seasonId,
     };
   }
 
@@ -70,6 +87,11 @@ class LeaderboardEntryModel {
   final List<String> badges;
   final bool isCurrentUser;
   final bool isPremium;
+  final int accuracyPercent;
+  final int completedCategories;
+  final int completedMissions;
+  final int score;
+  final String seasonId;
 
   LeaderboardEntryEntity toEntity() {
     return LeaderboardEntryEntity(
@@ -86,6 +108,11 @@ class LeaderboardEntryModel {
       badges: badges,
       isCurrentUser: isCurrentUser,
       isPremium: isPremium,
+      accuracyPercent: accuracyPercent,
+      completedCategories: completedCategories,
+      completedMissions: completedMissions,
+      score: score,
+      seasonId: seasonId,
     );
   }
 
@@ -104,6 +131,11 @@ class LeaderboardEntryModel {
       badges: entity.badges,
       isCurrentUser: entity.isCurrentUser,
       isPremium: entity.isPremium,
+      accuracyPercent: entity.accuracyPercent,
+      completedCategories: entity.completedCategories,
+      completedMissions: entity.completedMissions,
+      score: entity.score,
+      seasonId: entity.seasonId,
     );
   }
 }

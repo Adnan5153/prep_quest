@@ -1,7 +1,10 @@
+import 'dart:async';
+
 import 'package:flutter/foundation.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../../../../shared/typedefs/result.dart';
+import '../../../authentication/presentation/providers/auth_providers.dart';
 import '../../data/datasources/leaderboard_local_datasource.dart';
 import '../../data/datasources/leaderboard_remote_datasource.dart';
 import '../../data/repositories/leaderboard_repository_impl.dart';
@@ -21,18 +24,23 @@ final leaderboardLocalDataSourceProvider =
   (ref) => LeaderboardLocalDataSource(),
 );
 
-/// Optional remote datasource (Firestore seam). Tests can override to
-/// force the remote path.
+/// Firestore-backed remote datasource. Falls back to empty rows when
+/// Firebase is unavailable; the repository then serves the local
+/// preview so the existing UI never breaks.
 final leaderboardRemoteDataSourceProvider =
     Provider<LeaderboardRemoteDataSource>(
-  (ref) => const LeaderboardRemoteDataSource(),
+  (ref) => LeaderboardRemoteDataSource(),
 );
 
-/// Single repository the entire feature consumes.
+/// Single repository the entire feature consumes. Remote-first for
+/// authenticated users; guest / offline requests transparently fall
+/// back to the deterministic local preview.
 final leaderboardRepositoryProvider = Provider<LeaderboardRepository>(
   (ref) => LeaderboardRepositoryImpl(
     local: ref.watch(leaderboardLocalDataSourceProvider),
     remote: ref.watch(leaderboardRemoteDataSourceProvider),
+    preferRemote: true,
+    uidProvider: () => ref.read(authStateProvider).user?.id ?? '',
   ),
 );
 
@@ -165,12 +173,56 @@ enum LeaderboardStatus { initial, loading, ready, error }
 ///
 /// Subscribers read [leaderboardControllerProvider] for the live
 /// view state; they call methods on the notifier to mutate it.
+///
+/// Phase 44: subscribes to [leaderboardCategoryStreamProvider] so
+/// every Firestore write from `LeaderboardService.recordQuizCompletion`
+/// surfaces inside the UI without an explicit refresh.
 class LeaderboardController extends StateNotifier<LeaderboardViewState> {
   LeaderboardController({
     required this.repository,
-  }) : super(LeaderboardViewState.initial);
+    required Ref ref,
+  }) : super(LeaderboardViewState.initial) {
+    _ref = ref;
+    for (final LeaderboardScope scope in LeaderboardScope.values) {
+      _ref.listen<AsyncValue<LeaderboardCategoryEntity>>(
+        leaderboardCategoryStreamProvider(scope),
+        (
+          AsyncValue<LeaderboardCategoryEntity>? previous,
+          AsyncValue<LeaderboardCategoryEntity> next,
+        ) {
+          next.whenData((LeaderboardCategoryEntity category) {
+            _upsertCategory(category);
+          });
+        },
+      );
+    }
+  }
 
   final LeaderboardRepository repository;
+  late final Ref _ref;
+  final Map<LeaderboardScope, LeaderboardCategoryEntity> _liveCategories =
+      <LeaderboardScope, LeaderboardCategoryEntity>{};
+
+  void _upsertCategory(LeaderboardCategoryEntity category) {
+    _liveCategories[category.scope] = category;
+    final List<LeaderboardCategoryEntity> next = <LeaderboardCategoryEntity>[];
+    for (final LeaderboardScope s in LeaderboardScope.values) {
+      if (_liveCategories.containsKey(s)) {
+        next.add(_liveCategories[s]!);
+      }
+    }
+    if (!mounted) return;
+    if (next.isNotEmpty) {
+      state = state.copyWith(
+        status: LeaderboardStatus.ready,
+        categories: next,
+        entries: state.activeScope == category.scope
+            ? category.entries
+            : state.entries,
+        clearError: true,
+      );
+    }
+  }
 
   /// Loads every scope in parallel — used by the hub.
   Future<void> loadAll() async {
@@ -267,6 +319,7 @@ final leaderboardControllerProvider =
     StateNotifierProvider<LeaderboardController, LeaderboardViewState>(
   (ref) => LeaderboardController(
     repository: ref.watch(leaderboardRepositoryProvider),
+    ref: ref,
   ),
 );
 

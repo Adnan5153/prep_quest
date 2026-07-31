@@ -26,6 +26,17 @@ abstract class AuthRemoteDataSource {
     required String displayName,
   });
 
+  /// Signs the user in via Google.
+  ///
+  /// Returns an [AuthSessionModel] whose [UserModel] carries the
+  /// fields Google reports at sign-in time (display name, email,
+  /// photo URL, `emailVerified: true`). `examTrackId` is left at the
+  /// default (`ExamTrack.other`) so the router continues to send the
+  /// user through the profile-completion flow on first sign-in and
+  /// skips it on subsequent sign-ins once [updateProfile] has been
+  /// called.
+  Future<AuthSessionModel> signInWithGoogle();
+
   Future<void> sendPasswordReset({required String email});
 
   Future<OtpRequestModel> sendPhoneOtp({required String phoneNumber});

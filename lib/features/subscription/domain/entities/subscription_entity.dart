@@ -3,11 +3,26 @@ import 'package:flutter/foundation.dart';
 /// Subscription tier surfaced by the Plans screen. Mapped from the
 /// mock remote catalogue today; the same enum will be returned by the
 /// future Firestore collection.
-enum SubscriptionTier {
-  free,
-  monthly,
-  quarterly,
-  yearly,
+enum SubscriptionTier { free, monthly, quarterly, yearly }
+
+/// Semantic identifier for the icon used to brand a subscription
+/// feature. The presentation layer maps each enum value to a const
+/// [IconData] via `AppIcons.subscriptionFeatureIcons`, which keeps the
+/// referenced icons statically known so the Material font tree-shakes
+/// at build time.
+enum SubscriptionFeatureIcon {
+  unlimitedAi,
+  hints,
+  flashcards,
+  studyPlans,
+  mockTests,
+  advancedAnalytics,
+  weaknessReports,
+  unlimitedBookmarks,
+  offlineDownloads,
+  priorityContent,
+  exclusiveStudyMaterials,
+  adFree,
 }
 
 extension SubscriptionTierX on SubscriptionTier {
@@ -46,7 +61,7 @@ class SubscriptionFeatureEntity {
     required this.id,
     required this.title,
     required this.description,
-    required this.iconCodePoint,
+    required this.icon,
     required this.freeAvailable,
     required this.premiumAvailable,
   });
@@ -54,7 +69,7 @@ class SubscriptionFeatureEntity {
   final String id;
   final String title;
   final String description;
-  final int iconCodePoint;
+  final SubscriptionFeatureIcon icon;
   final bool freeAvailable;
   final bool premiumAvailable;
 }

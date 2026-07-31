@@ -16,9 +16,10 @@ class AuthStrings {
   static const String welcomeTitle = 'Welcome to Prep Quest';
   static const String welcomeSubtitle =
       'Your smart BCS prep companion. Learn, practice, and level up your exam journey.';
-  static const String welcomePrimaryCta = 'Get started';
-  static const String welcomeSecondaryCta = 'I already have an account';
-  static const String welcomeContinueAsGuest = 'Continue as guest';
+  static const String welcomePrimaryCta = 'Continue with Google';
+  static const String welcomeGoogleFailure =
+      'Google sign-in failed. Please try again.';
+  static const String welcomeGoogleCancelled = 'Google sign-in was cancelled.';
 
   // Login
   static const String loginTitle = 'Sign in to Prep Quest';

@@ -63,6 +63,7 @@ final Provider<AiTutorRepository> aiTutorRepositoryProvider =
     Provider<AiTutorRepository>((Ref ref) {
   return AiTutorRepositoryImpl(
     remote: ref.watch(aiTutorRemoteDataSourceProvider),
+    ref: ref,
   );
 });
 

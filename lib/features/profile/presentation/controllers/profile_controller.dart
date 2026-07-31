@@ -133,6 +133,24 @@ class ProfileController extends StateNotifier<ProfileState> {
     state = state.copyWith(clearError: true, clearSuccess: true);
   }
 
+  /// Replaces the local profile with an externally-computed snapshot
+  /// (e.g. the result of `UserProgressService._nextProfile` after a
+  /// quiz completion). Used by the canonical quiz-completion funnel to
+  /// deliver instant UI sync of XP / coins / level without round-tripping
+  /// through the use cases.
+  ///
+  /// The Firestore write that backs this update is the transactional
+  /// progression write inside `UserProgressService.applyQuizCompletion`,
+  /// so this method intentionally does NOT persist — it only mirrors
+  /// the canonical state into the UI.
+  void replaceLocalProfile(UserProfile profile) {
+    state = state.copyWith(
+      status: ProfileStatus.ready,
+      profile: profile,
+      clearError: true,
+    );
+  }
+
   Future<void> refresh() => load();
 
   String _messageFor(Failure failure) => failure.message;

@@ -1,6 +1,10 @@
+import 'dart:async';
 import 'dart:developer' as developer;
 
+import 'package:flutter_riverpod/flutter_riverpod.dart';
+
 import '../../../../core/errors/error_handler.dart';
+import '../../../../core/security/auth_precondition.dart';
 import '../../../../shared/typedefs/result.dart';
 import '../../domain/entities/ai_note_entity.dart';
 import '../../domain/entities/highlight_entity.dart';
@@ -17,19 +21,67 @@ import '../models/ai_note_model.dart';
 import '../models/highlight_model.dart';
 import '../models/note_model.dart';
 
-/// Concrete [NotesRepository] with remote-first local fallback.
+/// Concrete [NotesRepository] with Firestore-first behaviour and an
+/// in-memory cache for offline reads + filter/sort/search queries.
+///
+/// Phase 47 — every write is forwarded to [NotesRemoteDatasource]
+/// which delegates to [NoteService] (the single writer for the
+/// `users/{uid}/notes` subcollection plus the `highlights` /
+/// `ai_notes` mirrors). Realtime updates flow back through
+/// [remoteStreamFactory] and overwrite the local cache so the
+/// controller + widgets refresh without a manual pull.
 class NotesRepositoryImpl implements NotesRepository {
   NotesRepositoryImpl({
     required this.local,
-    this.remote,
-    this.preferRemote = false,
+    required NotesRemoteDatasource remote,
+    Stream<List<NoteModel>> Function()? remoteStreamFactory,
+    this.preferRemote = true,
     DateTime Function()? clock,
-  }) : _clock = clock ?? DateTime.now;
+    required Ref ref,
+  })  : _remote = remote,
+        _remoteStreamFactory = remoteStreamFactory,
+        _clock = clock ?? DateTime.now,
+        _guard = AuthGuard(ref) {
+    _subscribeToRemote();
+  }
 
   final NotesLocalDataSource local;
-  final NotesRemoteDatasource? remote;
+  final NotesRemoteDatasource _remote;
+  final Stream<List<NoteModel>> Function()? _remoteStreamFactory;
   final bool preferRemote;
   final DateTime Function() _clock;
+  final AuthGuard _guard;
+
+  StreamSubscription<List<NoteModel>>? _remoteSubscription;
+
+  void _subscribeToRemote() {
+    final Stream<List<NoteModel>> Function()? factory = _remoteStreamFactory;
+    if (factory == null) return;
+    _remoteSubscription = factory().listen(
+      (List<NoteModel> rows) {
+        local.writeAll(rows);
+        developer.log(
+          '[NotesRepository] remote snapshot: ${rows.length} rows',
+          name: 'NotesRepository',
+        );
+      },
+      onError: (Object e, StackTrace st) {
+        developer.log(
+          '[NotesRepository] remote stream error: $e',
+          error: e,
+          stackTrace: st,
+          name: 'NotesRepository',
+        );
+      },
+    );
+  }
+
+  /// Cancels the realtime Firestore subscription. Called from
+  /// `ref.onDispose` in the provider.
+  void cancelRemoteSubscription() {
+    _remoteSubscription?.cancel();
+    _remoteSubscription = null;
+  }
 
   @override
   Future<Result<List<NoteEntity>>> getNotes({
@@ -113,9 +165,17 @@ class NotesRepositoryImpl implements NotesRepository {
   @override
   Future<Result<NoteEntity>> createNote(NoteEntity note) async {
     try {
+      _guard.assertAuthenticated();
       final NoteModel model = NoteModel.fromEntity(note);
       local.writeOne(model);
-      _safePush();
+      final Result<NoteModel> remoteResult = await _remote.upsert(model);
+      if (remoteResult.isFailure) {
+        developer.log(
+          '[NotesRepository] upsert failed (cache-only): '
+          '${remoteResult.failureOrNull?.message}',
+          name: 'NotesRepository',
+        );
+      }
       return Result.success(model.toEntity());
     } catch (e, st) {
       return Result.failure(ErrorHandler.map(e, st));
@@ -125,10 +185,18 @@ class NotesRepositoryImpl implements NotesRepository {
   @override
   Future<Result<NoteEntity>> updateNote(NoteEntity note) async {
     try {
+      _guard.assertAuthenticated();
       final NoteModel model =
           NoteModel.fromEntity(note.copyWith(updatedAtIso: _clock().toIso8601String()));
       local.writeOne(model);
-      _safePush();
+      final Result<NoteModel> remoteResult = await _remote.upsert(model);
+      if (remoteResult.isFailure) {
+        developer.log(
+          '[NotesRepository] upsert failed (cache-only): '
+          '${remoteResult.failureOrNull?.message}',
+          name: 'NotesRepository',
+        );
+      }
       return Result.success(model.toEntity());
     } catch (e, st) {
       return Result.failure(ErrorHandler.map(e, st));
@@ -138,8 +206,18 @@ class NotesRepositoryImpl implements NotesRepository {
   @override
   Future<Result<void>> deleteNote(String id) async {
     try {
-      local.removeOne(id);
-      _safePush();
+      _guard.assertAuthenticated();
+      final bool removed = local.removeOne(id);
+      if (removed) {
+        final Result<bool> remoteResult = await _remote.removeById(id);
+        if (remoteResult.isFailure) {
+          developer.log(
+            '[NotesRepository] remove failed (cache-only): '
+            '${remoteResult.failureOrNull?.message}',
+            name: 'NotesRepository',
+          );
+        }
+      }
       return const Result<void>.success(null);
     } catch (e, st) {
       return Result.failure(ErrorHandler.map(e, st));
@@ -149,6 +227,7 @@ class NotesRepositoryImpl implements NotesRepository {
   @override
   Future<Result<NoteEntity>> togglePin(String id) async {
     try {
+      _guard.assertAuthenticated();
       final NoteModel? existing = _findLocal(id);
       if (existing == null) {
         return Result<NoteEntity>.failure(
@@ -163,7 +242,14 @@ class NotesRepositoryImpl implements NotesRepository {
         updatedAtIso: _clock().toIso8601String(),
       );
       local.writeOne(next);
-      _safePush();
+      final Result<NoteModel> remoteResult = await _remote.upsert(next);
+      if (remoteResult.isFailure) {
+        developer.log(
+          '[NotesRepository] upsert failed (cache-only): '
+          '${remoteResult.failureOrNull?.message}',
+          name: 'NotesRepository',
+        );
+      }
       return Result.success(next.toEntity());
     } catch (e, st) {
       return Result.failure(ErrorHandler.map(e, st));
@@ -173,6 +259,7 @@ class NotesRepositoryImpl implements NotesRepository {
   @override
   Future<Result<NoteEntity>> toggleFavorite(String id) async {
     try {
+      _guard.assertAuthenticated();
       final NoteModel? existing = _findLocal(id);
       if (existing == null) {
         return Result<NoteEntity>.failure(
@@ -187,7 +274,14 @@ class NotesRepositoryImpl implements NotesRepository {
         updatedAtIso: _clock().toIso8601String(),
       );
       local.writeOne(next);
-      _safePush();
+      final Result<NoteModel> remoteResult = await _remote.upsert(next);
+      if (remoteResult.isFailure) {
+        developer.log(
+          '[NotesRepository] upsert failed (cache-only): '
+          '${remoteResult.failureOrNull?.message}',
+          name: 'NotesRepository',
+        );
+      }
       return Result.success(next.toEntity());
     } catch (e, st) {
       return Result.failure(ErrorHandler.map(e, st));
@@ -245,8 +339,16 @@ class NotesRepositoryImpl implements NotesRepository {
   @override
   Future<Result<void>> clearAll() async {
     try {
+      _guard.assertAuthenticated();
       local.clear();
-      _safePush();
+      final Result<int> remoteResult = await _remote.clearAll();
+      if (remoteResult.isFailure) {
+        developer.log(
+          '[NotesRepository] clearAll failed (cache-only): '
+          '${remoteResult.failureOrNull?.message}',
+          name: 'NotesRepository',
+        );
+      }
       return const Result<void>.success(null);
     } catch (e, st) {
       return Result.failure(ErrorHandler.map(e, st));
@@ -345,22 +447,5 @@ class NotesRepositoryImpl implements NotesRepository {
 
   DateTime _parseTime(String iso) {
     return DateTime.tryParse(iso) ?? DateTime.fromMillisecondsSinceEpoch(0);
-  }
-
-  void _safePush() {
-    final NotesRemoteDatasource? r = remote;
-    if (r == null) return;
-    Future<void>(() async {
-      try {
-        await r.push(local.readAll());
-      } catch (e, st) {
-        developer.log(
-          'Notes push failed (best-effort): $e',
-          error: e,
-          stackTrace: st,
-          name: 'NotesRepository',
-        );
-      }
-    });
   }
 }

@@ -1,10 +1,17 @@
+import 'dart:async';
+
 import 'package:flutter/foundation.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
+import '../../../../core/services/coin_service.dart';
 import '../../../../shared/typedefs/result.dart';
+import '../../../profile/domain/entities/coin_transaction.dart';
+import '../../../profile/presentation/providers/coin_providers.dart';
+import '../../../profile/presentation/providers/profile_providers.dart';
 import '../../data/datasources/rewards_local_datasource.dart';
 import '../../data/repositories/rewards_repository_impl.dart';
 import '../../domain/entities/level_progress.dart';
+import '../../domain/entities/reward.dart';
 import '../../domain/entities/reward_event.dart';
 import '../../domain/entities/reward_history_entry.dart';
 import '../../domain/entities/reward_outcome.dart';
@@ -115,13 +122,15 @@ enum RewardsStatus { initial, loading, ready, error }
 /// controller is the only place that talks to the use cases.
 class RewardsController extends StateNotifier<RewardsViewState> {
   RewardsController({
+    required Ref ref,
     required GrantRewards grantRewards,
     required OpenRewardChest openChest,
     required ClaimDailyReward claimDaily,
     required LoadRewardsState loadState,
     required LoadRewardHistory loadHistory,
     required ToggleBadgeFavorite toggleFavorite,
-  })  : _grantRewards = grantRewards,
+  })  : _ref = ref,
+        _grantRewards = grantRewards,
         _openChest = openChest,
         _claimDaily = claimDaily,
         _loadState = loadState,
@@ -129,6 +138,7 @@ class RewardsController extends StateNotifier<RewardsViewState> {
         _toggleFavorite = toggleFavorite,
         super(RewardsViewState.initial);
 
+  final Ref _ref;
   final GrantRewards _grantRewards;
   final OpenRewardChest _openChest;
   final ClaimDailyReward _claimDaily;
@@ -155,7 +165,7 @@ class RewardsController extends StateNotifier<RewardsViewState> {
         );
         state = state.copyWith(
           status: RewardsStatus.ready,
-          snapshot: snapshot,
+          snapshot: _mirrorCanonicalBalance(snapshot),
           history: history,
           clearError: true,
         );
@@ -188,6 +198,7 @@ class RewardsController extends StateNotifier<RewardsViewState> {
           ],
           clearError: true,
         );
+        unawaited(_creditCoinsFromOutcome(trigger, data, outcome));
         return outcome;
       },
     );
@@ -211,6 +222,11 @@ class RewardsController extends StateNotifier<RewardsViewState> {
           lastOutcome: outcome,
           clearError: true,
         );
+        unawaited(_creditCoinsFromOutcome(
+          RewardTrigger.chestOpened,
+          ChestOpenedData(chestId: chestId),
+          outcome,
+        ));
         return outcome;
       },
     );
@@ -234,6 +250,11 @@ class RewardsController extends StateNotifier<RewardsViewState> {
           lastOutcome: outcome,
           clearError: true,
         );
+        unawaited(_creditCoinsFromOutcome(
+          RewardTrigger.dailyLogin,
+          DailyLoginData(day: day, streakDays: state.snapshot.streak.currentDays),
+          outcome,
+        ));
         return outcome;
       },
     );
@@ -265,11 +286,132 @@ class RewardsController extends StateNotifier<RewardsViewState> {
     if (state.lastOutcome == null && state.errorMessage == null) return;
     state = state.copyWith(clearOutcome: true, clearError: true);
   }
+
+  UserRewardsState _mirrorCanonicalBalance(UserRewardsState snapshot) {
+    final int canonicalCoins =
+        _ref.read(profileControllerProvider).profile?.progression.coins ?? 0;
+    return snapshot.copyWith(totalCoins: canonicalCoins);
+  }
+
+  Future<void> _creditCoinsFromOutcome(
+    RewardTrigger trigger,
+    RewardTriggerData data,
+    RewardOutcome outcome,
+  ) async {
+    final CoinService coinService = _ref.read(coinServiceProvider);
+    final List<_CoinGrant> grants = _resolveCoinGrants(trigger, data, outcome);
+    for (final _CoinGrant grant in grants) {
+      await coinService.grant(
+        source: grant.source,
+        sourceId: grant.sourceId,
+        amount: grant.amount,
+        reason: grant.reason,
+        metadata: grant.metadata,
+        type: CoinTransactionType.reward,
+      );
+    }
+  }
+
+  List<_CoinGrant> _resolveCoinGrants(
+    RewardTrigger trigger,
+    RewardTriggerData data,
+    RewardOutcome outcome,
+  ) {
+    final List<_CoinGrant> grants = <_CoinGrant>[];
+    for (final Reward reward in outcome.grants) {
+      if (reward is CoinReward) {
+        grants.add(_CoinGrant(
+          source: _sourceForTrigger(trigger, data),
+          sourceId: _sourceIdForTrigger(trigger, data, reward),
+          amount: reward.amount,
+          reason: reward.title,
+          metadata: <String, dynamic>{
+            'trigger': trigger.name,
+            'rewardId': reward.id,
+          },
+        ));
+      } else if (reward is DailyRewardEntry && reward.coins > 0) {
+        grants.add(_CoinGrant(
+          source: CoinTransactionSource.daily,
+          sourceId: 'day-${reward.day}',
+          amount: reward.coins,
+          reason: reward.title,
+          metadata: <String, dynamic>{
+            'trigger': trigger.name,
+            'day': reward.day,
+          },
+        ));
+      }
+    }
+    return grants;
+  }
+
+  CoinTransactionSource _sourceForTrigger(
+    RewardTrigger trigger,
+    RewardTriggerData data,
+  ) {
+    switch (trigger) {
+      case RewardTrigger.quizCompleted:
+        return CoinTransactionSource.quiz;
+      case RewardTrigger.missionCompleted:
+        return CoinTransactionSource.mission;
+      case RewardTrigger.dailyLogin:
+        return CoinTransactionSource.daily;
+      case RewardTrigger.chestOpened:
+        return CoinTransactionSource.chest;
+      case RewardTrigger.lessonCompleted:
+        return CoinTransactionSource.lesson;
+      case RewardTrigger.levelCompleted:
+        return CoinTransactionSource.level;
+      case RewardTrigger.badgeEarned:
+        return CoinTransactionSource.badge;
+    }
+  }
+
+  String _sourceIdForTrigger(
+    RewardTrigger trigger,
+    RewardTriggerData data,
+    Reward reward,
+  ) {
+    switch (data) {
+      case QuizCompletedData _:
+        return 'reward-${reward.id}-${trigger.name}';
+      case MissionCompletedData m:
+        return m.missionId;
+      case DailyLoginData d:
+        return 'day-${d.day}';
+      case ChestOpenedData c:
+        return c.chestId;
+      case LessonCompletedData l:
+        return l.lessonId;
+      case LevelCompletedData lvl:
+        return lvl.levelId;
+      case BadgeEarnedData b:
+        return b.badgeId;
+    }
+  }
+}
+
+class _CoinGrant {
+  const _CoinGrant({
+    required this.source,
+    required this.sourceId,
+    required this.amount,
+    required this.reason,
+    required this.metadata,
+  });
+
+  final CoinTransactionSource source;
+  final String sourceId;
+  final int amount;
+  final String reason;
+  final Map<String, dynamic> metadata;
 }
 
 final rewardsControllerProvider =
     StateNotifierProvider<RewardsController, RewardsViewState>(
   (ref) => RewardsController(
+    ref: ref,
     grantRewards: ref.watch(grantRewardsUseCaseProvider),
     openChest: ref.watch(openRewardChestUseCaseProvider),
     claimDaily: ref.watch(claimDailyRewardUseCaseProvider),

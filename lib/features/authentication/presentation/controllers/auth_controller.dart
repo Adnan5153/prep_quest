@@ -31,12 +31,9 @@ class AuthController extends StateNotifier<AuthState> {
 
   final AuthRepository _repository;
   StreamSubscription<UserEntity?>? _authSubscription;
-  bool _isAuthenticationBypassed = false;
 
   Future<void> _bootstrap() async {
-    if (_isAuthenticationBypassed) return;
     final Result<UserEntity?> result = await _repository.currentUser();
-    if (_isAuthenticationBypassed) return;
     result.fold(
       onFailure: (failure) {
         state = const AuthState.unauthenticated();
@@ -50,7 +47,6 @@ class AuthController extends StateNotifier<AuthState> {
       },
     );
     _authSubscription = _repository.authStateChanges().listen((user) {
-      if (_isAuthenticationBypassed) return;
       if (user == null) {
         if (mounted) {
           state = const AuthState.unauthenticated();
@@ -109,6 +105,35 @@ class AuthController extends StateNotifier<AuthState> {
           successMessage:
               'Account created! Please verify your email to continue.',
         );
+      },
+    );
+  }
+
+  /// Kicks off the Google Sign-In flow.
+  ///
+  /// On success the resulting [AuthSessionEntity] is fed through
+  /// [_applySession] which recomputes the auth status from the new
+  /// [UserEntity] — a brand-new Google user (display name populated
+  /// by Google, `examTrack` still at `ExamTrack.other`) lands on
+  /// [AuthStatus.profileIncomplete] and the router sends them to the
+  /// profile-completion screen with the Google photo / display name /
+  /// email pre-filled. A returning user whose [UserEntity.examTrack]
+  /// has since been persisted to anything other than `ExamTrack.other`
+  /// lands directly on [AuthStatus.authenticated].
+  Future<void> signInWithGoogle() async {
+    state = state.copyWith(clearError: true, isWorking: true);
+    final Result<AuthSessionEntity> result =
+        await _repository.signInWithGoogle();
+    if (!mounted) return;
+    result.fold(
+      onFailure: (failure) {
+        state = state.copyWith(
+          isWorking: false,
+          errorMessage: _messageFor(failure),
+        );
+      },
+      onSuccess: (session) {
+        _applySession(session, successMessage: 'Signed in with Google.');
       },
     );
   }
@@ -274,7 +299,6 @@ class AuthController extends StateNotifier<AuthState> {
   }
 
   Future<void> signOut() async {
-    _isAuthenticationBypassed = false;
     state = state.copyWith(isWorking: true);
     final Result<void> result = await _repository.signOut();
     if (!mounted) return;
@@ -288,40 +312,6 @@ class AuthController extends StateNotifier<AuthState> {
       onSuccess: (_) {
         state = const AuthState.unauthenticated();
       },
-    );
-  }
-
-  /// Short-circuits the entire authentication procedure and lands the
-  /// user directly on the Playground as a fully-signed-in demo
-  /// learner. Intended for the "I already have an account" entry
-  /// point on the welcome screen so QA (and users who already have a
-  /// session in another way) can skip the email/phone verification
-  /// flow during development.
-  void bypassAuthentication() {
-    final DateTime now = DateTime.now();
-    final UserEntity demoUser = UserEntity(
-      id: 'demo-user',
-      email: 'demo@prepquest.app',
-      displayName: 'Demo Learner',
-      emailVerified: true,
-      phoneNumber: '+8801700000000',
-      examTrack: ExamTrack.bcs,
-      role: UserRole.free,
-      district: 'Dhaka',
-      photoUrl: '',
-      createdAt: now,
-      lastSignInAt: now,
-    );
-    final AuthSessionEntity demoSession = AuthSessionEntity(
-      user: demoUser,
-      accessToken: 'local-bypass-token',
-      refreshToken: 'local-bypass-refresh-token',
-      expiresAt: now.add(const Duration(hours: 12)),
-    );
-    _isAuthenticationBypassed = true;
-    _applySession(
-      demoSession,
-      successMessage: 'Signed in as Demo Learner.',
     );
   }
 

@@ -1,14 +1,12 @@
-// ignore_for_file: non_const_argument_for_const_parameter
-
 import 'package:flutter/material.dart';
 
 import '../../../../../core/constants/app_colors.dart';
+import '../../../../../core/constants/app_icons.dart';
 import '../../../../../core/constants/app_radius.dart';
 import '../../../../../core/constants/app_sizes.dart';
 import '../../../../../core/constants/app_spacing.dart';
 import '../../../../../core/widgets/glass_card.dart';
 import '../../../domain/entities/subscription_entity.dart';
-import '../../../../../core/constants/app_icons.dart';
 
 /// Side-by-side feature comparison table used by the Plan Comparison
 /// screen. Built from the full feature catalog so the table stays in
@@ -134,16 +132,13 @@ class _FeatureRow extends StatelessWidget {
             child: Row(
               children: <Widget>[
                 Icon(
-                  _iconFromCodePoint(feature.iconCodePoint),
+                  AppIcons.subscriptionFeatureIcons[feature.icon]!,
                   size: AppSizes.iconMd,
                   color: theme.colorScheme.primary,
                 ),
                 const SizedBox(width: AppSpacing.sm),
                 Expanded(
-                  child: Text(
-                    feature.title,
-                    style: theme.textTheme.bodyMedium,
-                  ),
+                  child: Text(feature.title, style: theme.textTheme.bodyMedium),
                 ),
               ],
             ),
@@ -152,10 +147,7 @@ class _FeatureRow extends StatelessWidget {
             Expanded(
               flex: 2,
               child: Center(
-                child: _CellIndicator(
-                  tier: tier,
-                  feature: feature,
-                ),
+                child: _CellIndicator(tier: tier, feature: feature),
               ),
             ),
         ],
@@ -198,6 +190,3 @@ class _CellIndicator extends StatelessWidget {
     return feature.premiumAvailable;
   }
 }
-
-IconData _iconFromCodePoint(int codePoint) =>
-    IconData(codePoint, fontFamily: 'MaterialIcons');

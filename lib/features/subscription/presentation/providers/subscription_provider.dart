@@ -2,6 +2,9 @@
 
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
+import '../../../../core/config/firebase_config.dart';
+import '../../../authentication/presentation/providers/auth_providers.dart';
+import '../../data/datasources/firebase_subscription_remote_datasource.dart';
 import '../../data/datasources/subscription_remote_datasource.dart';
 import '../../data/repositories/subscription_repository_impl.dart';
 import '../../domain/entities/subscription_entity.dart';
@@ -17,8 +20,21 @@ import '../../domain/usecases/restore_purchases.dart';
 // Wiring
 // ---------------------------------------------------------------------------
 
+/// Subscription remote data source.
+///
+/// Production reads plans from the top-level `subscription_plans`
+/// collection and the entitlement from
+/// `users/{uid}/subscription/current` via
+/// [FirebaseSubscriptionRemoteDatasource]. The MethodChannel-based mock
+/// is the offline fallback (tests / unconfigured dev).
 final Provider<SubscriptionRemoteDatasource> subscriptionRemoteDataSourceProvider =
     Provider<SubscriptionRemoteDatasource>((Ref ref) {
+  if (FirebaseConfig.isPlatformConfigured) {
+    final String? uid = ref.watch(authStateProvider).user?.id;
+    if (uid != null && uid.isNotEmpty) {
+      return FirebaseSubscriptionRemoteDatasource(uid: uid);
+    }
+  }
   return MockSubscriptionRemoteDatasource();
 });
 

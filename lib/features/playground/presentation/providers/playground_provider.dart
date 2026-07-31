@@ -1,5 +1,7 @@
 import 'package:flutter/foundation.dart';
 
+import '../../../../core/services/level_curve.dart';
+
 /// World-step runtime status tracked by [PlaygroundProvider].
 @immutable
 class PlaygroundNodeStatus {
@@ -101,18 +103,23 @@ class PlaygroundProgress {
   bool isCompleted(String nodeId) => completedLevelIds.contains(nodeId);
   bool isUnlocked(String nodeId) => unlockedLevelIds.contains(nodeId);
 
-  static const PlaygroundProgress seed = PlaygroundProgress(
+  static final PlaygroundProgress seed = PlaygroundProgress(
     totalXp: 0,
     userLevel: 1,
     xpInLevel: 0,
-    xpForNextLevel: 100,
+    xpForNextLevel: LevelCurve.defaultCurve.xpRequiredForLevel(1),
     coins: 0,
     energy: 5,
     maxEnergy: 5,
     streakDays: 0,
+    // Phase 57 — the seed starts empty. The first category id from
+    // Quiz Hub is unlocked on first launch; the player must complete
+    // it to unlock the next. Callers that want a non-empty seed can
+    // pass [PlaygroundProgress] with explicit values via
+    // [PlaygroundProvider] constructor.
     completedLevelIds: <String>[],
-    unlockedLevelIds: <String>['node-0', 'node-2'],
-    activeLevelId: 'node-2',
+    unlockedLevelIds: <String>[],
+    activeLevelId: null,
     lastReward: PlaygroundRewardEvent.empty,
   );
 
@@ -156,7 +163,7 @@ const Object _sentinel = Object();
 /// Playground feature.
 class PlaygroundProvider extends ChangeNotifier {
   PlaygroundProvider({PlaygroundProgress? initial})
-      : _progress = initial ?? PlaygroundProgress.seed;
+    : _progress = initial ?? PlaygroundProgress.seed;
 
   PlaygroundProgress _progress;
 
@@ -172,89 +179,104 @@ class PlaygroundProvider extends ChangeNotifier {
     replace(PlaygroundProgress.seed);
   }
 
+  /// Marks [nodeId] as completed and unlocks the next sequential node
+  /// (if any). XP / coins are **not** mutated here — those come from
+  /// the canonical funnel `UserProgressService.applyQuizCompletion`,
+  /// which pushes the updated profile's XP/coins/level into
+  /// `playgroundProgressProvider` via [replace].
+  ///
+  /// Keeping this method free of XP/coin deltas is what guarantees the
+  /// Playground UI totalXp/coins always match `UserProfile.progression`
+  /// rather than a duplicated, hardcoded source.
   void markCompleted(String nodeId) {
     final completed = <String>[..._progress.completedLevelIds];
     if (!completed.contains(nodeId)) completed.add(nodeId);
 
-    final ids = _progress.completedLevelIds.isEmpty
-        ? _allNodeIds()
-        : _progress.completedLevelIds;
-    final nextNode = _findNextNode(ids, fromId: nodeId);
+    // Phase 57 — the previous `node-N` synthesis was replaced by the
+    // canonical Quiz Hub category ordering. We pick the next category
+    // id by appending the just-completed node to the locked/unlocked
+    // ordering, deduping, and returning whatever follows it. If the
+    // caller has supplied an [orderedNodeIds] hint (set via
+    // [setOrderedNodeIds]) we prefer that ordering; otherwise we fall
+    // back to the completed-ordering heuristic so the playground still
+    // makes forward progress when the canonical category list is not
+    // yet hydrated.
+    final List<String> orderedIds = _orderedNodeIds.isNotEmpty
+        ? _orderedNodeIds
+        : <String>[...completed];
+    final nextNode = _findNextNode(orderedIds, fromId: nodeId);
 
     final unlocked = <String>[..._progress.unlockedLevelIds];
     if (nextNode != null && !unlocked.contains(nextNode)) {
       unlocked.add(nextNode);
     }
 
-    final reward = PlaygroundRewardEvent(
-      xp: 25,
-      coins: 10,
-      sourceId: nodeId,
-      kind: PlaygroundRewardKind.level,
-    );
-
     replace(
       _progress.copyWith(
         completedLevelIds: completed,
         unlockedLevelIds: unlocked,
         activeLevelId: nextNode ?? _progress.activeLevelId,
-        totalXp: _progress.totalXp + reward.xp,
-        coins: _progress.coins + reward.coins,
-        lastReward: reward,
+        lastReward: PlaygroundRewardEvent(
+          xp: 0,
+          coins: 0,
+          sourceId: nodeId,
+          kind: PlaygroundRewardKind.level,
+        ),
       ),
     );
   }
 
+  /// Records a boss completion and unlocks the next node. XP / coins
+  /// remain sourced exclusively from `UserProgressService` — see the
+  /// note on [markCompleted].
   void grantBossReward(String nodeId) {
     final completed = <String>[..._progress.completedLevelIds];
     if (!completed.contains(nodeId)) completed.add(nodeId);
 
+    final List<String> orderedIds = _orderedNodeIds.isNotEmpty
+        ? _orderedNodeIds
+        : <String>[...completed];
+    final nextNode = _findNextNode(orderedIds, fromId: nodeId);
+
     final unlocked = <String>[..._progress.unlockedLevelIds];
-    final nextNode = _findNextNode(completed, fromId: nodeId);
     if (nextNode != null && !unlocked.contains(nextNode)) {
       unlocked.add(nextNode);
     }
-
-    final reward = PlaygroundRewardEvent(
-      xp: 100,
-      coins: 50,
-      sourceId: nodeId,
-      kind: PlaygroundRewardKind.boss,
-    );
 
     replace(
       _progress.copyWith(
         completedLevelIds: completed,
         unlockedLevelIds: unlocked,
         activeLevelId: nextNode ?? _progress.activeLevelId,
-        totalXp: _progress.totalXp + reward.xp,
-        coins: _progress.coins + reward.coins,
-        lastReward: reward,
+        lastReward: PlaygroundRewardEvent(
+          xp: 0,
+          coins: 0,
+          sourceId: nodeId,
+          kind: PlaygroundRewardKind.boss,
+        ),
       ),
     );
   }
 
+  /// Records a chest opened on [nodeId]. XP / coins are sourced
+  /// exclusively from `UserProgressService` — see the note on
+  /// [markCompleted].
   void grantRewardChest(String nodeId) {
-    final reward = PlaygroundRewardEvent(
-      xp: 15,
-      coins: 5,
-      sourceId: nodeId,
-      kind: PlaygroundRewardKind.rewardChest,
-    );
     replace(
       _progress.copyWith(
-        totalXp: _progress.totalXp + reward.xp,
-        coins: _progress.coins + reward.coins,
-        lastReward: reward,
+        lastReward: PlaygroundRewardEvent(
+          xp: 0,
+          coins: 0,
+          sourceId: nodeId,
+          kind: PlaygroundRewardKind.rewardChest,
+        ),
       ),
     );
   }
 
   void consumeReward() {
     if (_progress.lastReward == PlaygroundRewardEvent.empty) return;
-    replace(
-      _progress.copyWith(lastReward: PlaygroundRewardEvent.empty),
-    );
+    replace(_progress.copyWith(lastReward: PlaygroundRewardEvent.empty));
   }
 
   /// Marks [nodeId] as the current in-progress node so the camera can focus.
@@ -263,20 +285,24 @@ class PlaygroundProvider extends ChangeNotifier {
     replace(_progress.copyWith(activeLevelId: nodeId));
   }
 
-  static List<String> _allNodeIds() {
-    return List<String>.generate(7, (i) => 'node-$i');
-  }
-
   static String? _findNextNode(
-    List<String> completedIds, {
+    List<String> orderedIds, {
     required String fromId,
   }) {
-    final prefix = 'node-';
-    if (!fromId.startsWith(prefix)) return null;
-    final current = int.tryParse(fromId.substring(prefix.length));
-    if (current == null) return null;
-    final nextId = '$prefix${current + 1}';
-    if (completedIds.contains(nextId)) return null;
-    return nextId;
+    final int idx = orderedIds.indexOf(fromId);
+    if (idx < 0 || idx + 1 >= orderedIds.length) return null;
+    return orderedIds[idx + 1];
+  }
+
+  /// Phase 57 — caller-provided canonical ordering of every node id
+  /// on the world map. Populated by [worldStepsProvider] so the legacy
+  /// "next node after this one" logic can resolve against real
+  /// Quiz Hub category ids instead of a synthetic `node-N` scheme.
+  List<String> _orderedNodeIds = const <String>[];
+
+  /// Sets the canonical category ordering used by [markCompleted]
+  /// and [grantBossReward] to compute the next-unlocked node.
+  void setOrderedNodeIds(List<String> ids) {
+    _orderedNodeIds = List<String>.unmodifiable(ids);
   }
 }

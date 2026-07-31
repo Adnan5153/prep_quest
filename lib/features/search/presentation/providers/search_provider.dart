@@ -1,7 +1,12 @@
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
+import '../../../../core/config/firebase_config.dart';
 import '../../../../core/errors/failures.dart';
 import '../../../../shared/typedefs/result.dart';
+import '../../../authentication/presentation/providers/auth_providers.dart';
+import '../../../lessons/presentation/providers/lesson_provider.dart';
+import '../../../quiz_engine/presentation/providers/quiz_providers.dart';
+import '../../data/datasources/firebase_search_remote_datasource.dart';
 import '../../data/datasources/search_local_datasource.dart';
 import '../../data/datasources/search_remote_datasource.dart';
 import '../../data/repositories/search_repository_impl.dart';
@@ -22,14 +27,33 @@ final searchLocalDataSourceProvider = Provider<SearchLocalDataSource>(
   (ref) => SearchLocalDataSource(),
 );
 
+/// Remote data source for the Search feature.
+///
+/// Production wires [FirebaseSearchRemoteDataSource] which reads
+/// lesson/quiz catalogues from Firestore and persists recent
+/// searches per user. Falls back to the stub [SearchRemoteDataSource]
+/// when Firebase is not configured (tests / unconfigured dev).
 final searchRemoteDataSourceProvider = Provider<SearchRemoteDataSource>(
-  (ref) => const SearchRemoteDataSource(),
+  (ref) {
+    if (FirebaseConfig.isPlatformConfigured) {
+      final String? uid = ref.watch(authStateProvider).user?.id;
+      if (uid != null && uid.isNotEmpty) {
+        return FirebaseSearchRemoteDataSource(
+          uid: uid,
+          lessonSource: ref.watch(lessonRemoteDataSourceProvider),
+          quizSource: ref.watch(quizRemoteDataSourceProvider),
+        );
+      }
+    }
+    return const SearchRemoteDataSource();
+  },
 );
 
 final searchRepositoryProvider = Provider<SearchRepository>(
   (ref) => SearchRepositoryImpl(
     local: ref.watch(searchLocalDataSourceProvider),
     remote: ref.watch(searchRemoteDataSourceProvider),
+    ref: ref,
   ),
 );
 

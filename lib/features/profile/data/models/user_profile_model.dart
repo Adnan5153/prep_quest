@@ -1,3 +1,6 @@
+import 'package:flutter/foundation.dart';
+
+import '../../../../core/services/level_curve.dart';
 import '../../../../shared/enums/exam_track.dart';
 import '../../domain/entities/user_profile.dart';
 
@@ -181,6 +184,11 @@ class ProgressionModel {
     required this.rankId,
     required this.streakDays,
     required this.isStreakAtRisk,
+    this.previousLevelThreshold = 0,
+    this.nextLevelThreshold = 0,
+    this.totalLevelUpsCompleted = 0,
+    this.lastLevelUpAt,
+    this.pendingLevelRewards = const <PendingLevelReward>[],
   });
 
   final int totalXp;
@@ -194,6 +202,11 @@ class ProgressionModel {
   final String rankId;
   final int streakDays;
   final bool isStreakAtRisk;
+  final int previousLevelThreshold;
+  final int nextLevelThreshold;
+  final int totalLevelUpsCompleted;
+  final DateTime? lastLevelUpAt;
+  final List<PendingLevelReward> pendingLevelRewards;
 
   ProgressionEntity toEntity() {
     return ProgressionEntity(
@@ -208,6 +221,13 @@ class ProgressionModel {
       rank: ProfileRank.fromId(rankId),
       streakDays: streakDays,
       isStreakAtRisk: isStreakAtRisk,
+      previousLevelThreshold: previousLevelThreshold,
+      nextLevelThreshold: nextLevelThreshold,
+      totalLevelUpsCompleted: totalLevelUpsCompleted,
+      lastLevelUpAt: lastLevelUpAt,
+      pendingLevelRewards: List<PendingLevelReward>.unmodifiable(
+        pendingLevelRewards,
+      ),
     );
   }
 
@@ -224,15 +244,34 @@ class ProgressionModel {
       rankId: entity.rank.id,
       streakDays: entity.streakDays,
       isStreakAtRisk: entity.isStreakAtRisk,
+      previousLevelThreshold: entity.previousLevelThreshold,
+      nextLevelThreshold: entity.nextLevelThreshold,
+      totalLevelUpsCompleted: entity.totalLevelUpsCompleted,
+      lastLevelUpAt: entity.lastLevelUpAt,
+      pendingLevelRewards: List<PendingLevelReward>.unmodifiable(
+        entity.pendingLevelRewards,
+      ),
     );
   }
 
   factory ProgressionModel.fromMap(Map<String, dynamic> map) {
+    final int parsedLevel = (map['level'] as num?)?.toInt() ?? 1;
+    final int parsedXpInLevel = (map['xpInLevel'] as num?)?.toInt() ?? 0;
+    final int? rawXpForNext =
+        (map['xpForNextLevel'] as num?)?.toInt();
+    final int derivedXpForNext =
+        LevelCurve.defaultCurve.xpRequiredForLevel(parsedLevel);
+    if (rawXpForNext == null && kDebugMode) {
+      debugPrint(
+        'ProgressionModel.fromMap: missing xpForNextLevel, derived '
+        '$derivedXpForNext from level $parsedLevel.',
+      );
+    }
     return ProgressionModel(
       totalXp: (map['totalXp'] as num?)?.toInt() ?? 0,
-      level: (map['level'] as num?)?.toInt() ?? 1,
-      xpInLevel: (map['xpInLevel'] as num?)?.toInt() ?? 0,
-      xpForNextLevel: (map['xpForNextLevel'] as num?)?.toInt() ?? 100,
+      level: parsedLevel,
+      xpInLevel: parsedXpInLevel,
+      xpForNextLevel: rawXpForNext ?? derivedXpForNext,
       coins: (map['coins'] as num?)?.toInt() ?? 0,
       energy: (map['energy'] as num?)?.toInt() ?? 5,
       maxEnergy: (map['maxEnergy'] as num?)?.toInt() ?? 5,
@@ -241,6 +280,20 @@ class ProgressionModel {
       rankId: map['rankId'] as String? ?? ProfileRank.bronze.id,
       streakDays: (map['streakDays'] as num?)?.toInt() ?? 0,
       isStreakAtRisk: map['isStreakAtRisk'] as bool? ?? false,
+      previousLevelThreshold:
+          (map['previousLevelThreshold'] as num?)?.toInt() ?? 0,
+      nextLevelThreshold:
+          (map['nextLevelThreshold'] as num?)?.toInt() ?? 0,
+      totalLevelUpsCompleted:
+          (map['totalLevelUpsCompleted'] as num?)?.toInt() ?? 0,
+      lastLevelUpAt:
+          DateTime.tryParse(map['lastLevelUpAt'] as String? ?? '')?.toLocal(),
+      pendingLevelRewards: ((map['pendingLevelRewards'] as List<dynamic>?) ??
+              <dynamic>[])
+          .whereType<Map<String, dynamic>>()
+          .map(_PendingLevelRewardModel.fromMap)
+          .map((_PendingLevelRewardModel model) => model.toEntity())
+          .toList(growable: false),
     );
   }
 
@@ -257,7 +310,90 @@ class ProgressionModel {
       'rankId': rankId,
       'streakDays': streakDays,
       'isStreakAtRisk': isStreakAtRisk,
+      'previousLevelThreshold': previousLevelThreshold,
+      'nextLevelThreshold': nextLevelThreshold,
+      'totalLevelUpsCompleted': totalLevelUpsCompleted,
+      'lastLevelUpAt': lastLevelUpAt?.toUtc().toIso8601String(),
+      'pendingLevelRewards': pendingLevelRewards
+          .map(_PendingLevelRewardModel.fromEntity)
+          .map((_PendingLevelRewardModel model) => model.toMap())
+          .toList(growable: false),
     };
+  }
+}
+
+/// Firestore-shaped DTO for [PendingLevelReward]. Kept private to the
+/// model file because the entity is the public contract.
+class _PendingLevelRewardModel {
+  const _PendingLevelRewardModel({
+    required this.level,
+    required this.xpBonus,
+    required this.coinBonus,
+    required this.badgeId,
+    required this.unlockedTitles,
+    required this.queuedAt,
+    required this.claimed,
+  });
+
+  final int level;
+  final int xpBonus;
+  final int coinBonus;
+  final String? badgeId;
+  final List<String> unlockedTitles;
+  final DateTime queuedAt;
+  final bool claimed;
+
+  factory _PendingLevelRewardModel.fromMap(Map<String, dynamic> map) {
+    return _PendingLevelRewardModel(
+      level: (map['level'] as num?)?.toInt() ?? 0,
+      xpBonus: (map['xpBonus'] as num?)?.toInt() ?? 0,
+      coinBonus: (map['coinBonus'] as num?)?.toInt() ?? 0,
+      badgeId: map['badgeId'] as String?,
+      unlockedTitles: ((map['unlockedTitles'] as List<dynamic>?) ??
+              <dynamic>[])
+          .whereType<String>()
+          .toList(growable: false),
+      queuedAt:
+          DateTime.tryParse(map['queuedAt'] as String? ?? '')?.toLocal() ??
+              DateTime.now(),
+      claimed: map['claimed'] as bool? ?? false,
+    );
+  }
+
+  factory _PendingLevelRewardModel.fromEntity(PendingLevelReward entity) {
+    return _PendingLevelRewardModel(
+      level: entity.level,
+      xpBonus: entity.xpBonus,
+      coinBonus: entity.coinBonus,
+      badgeId: entity.badgeId,
+      unlockedTitles: List<String>.unmodifiable(entity.unlockedTitles),
+      queuedAt: entity.queuedAt,
+      claimed: entity.claimed,
+    );
+  }
+
+  Map<String, dynamic> toMap() {
+    return <String, dynamic>{
+      'level': level,
+      'xpBonus': xpBonus,
+      'coinBonus': coinBonus,
+      'badgeId': badgeId,
+      'unlockedTitles': unlockedTitles,
+      'queuedAt': queuedAt.toUtc().toIso8601String(),
+      'claimed': claimed,
+    };
+  }
+
+  PendingLevelReward toEntity() {
+    return PendingLevelReward(
+      level: level,
+      xpBonus: xpBonus,
+      coinBonus: coinBonus,
+      badgeId: badgeId,
+      unlockedTitles: List<String>.unmodifiable(unlockedTitles),
+      queuedAt: queuedAt,
+      claimed: claimed,
+    );
   }
 }
 

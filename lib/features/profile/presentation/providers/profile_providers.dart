@@ -1,6 +1,9 @@
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
+import '../../../../core/config/firebase_config.dart';
+import '../../../authentication/presentation/providers/auth_providers.dart';
 import '../../../gamification/domain/entities/badge_entry.dart';
+import '../../data/datasources/firestore_profile_remote_datasource.dart';
 import '../../data/datasources/mock_profile_local_datasource.dart';
 import '../../data/datasources/mock_profile_remote_datasource.dart';
 import '../../data/datasources/profile_local_datasource.dart';
@@ -18,11 +21,22 @@ import '../utils/achievement_mapper.dart';
 
 /// Provider for the remote profile data source.
 ///
-/// Defaults to the in-memory mock so the app boots without Firebase
-/// wired in. Production overrides this with a Firestore-backed
-/// implementation.
+/// Returns the **real** [FirestoreProfileRemoteDataSource] whenever
+/// Firebase is configured AND the active auth session has a uid —
+/// profile data is then read straight from `users/{uid}/profile/current`.
+/// When Firebase is not configured (unit tests, hot-reload sessions,
+/// or a fresh dev machine without `google-services.json`) the provider
+/// falls back to [MockProfileRemoteDataSource] so the app still boots.
+/// While the user is unauthenticated the provider returns a no-op mock
+/// so the widget tree can resolve before sign-in completes.
 final profileRemoteDataSourceProvider = Provider<ProfileRemoteDataSource>(
   (ref) {
+    if (FirebaseConfig.isPlatformConfigured) {
+      final String? uid = ref.watch(authStateProvider).user?.id;
+      if (uid != null && uid.isNotEmpty) {
+        return FirestoreProfileRemoteDataSource(uid: uid);
+      }
+    }
     final MockProfileRemoteDataSource instance = MockProfileRemoteDataSource();
     ref.onDispose(instance.dispose);
     return instance;
@@ -30,6 +44,11 @@ final profileRemoteDataSourceProvider = Provider<ProfileRemoteDataSource>(
 );
 
 /// Provider for the local profile cache.
+///
+/// Kept as the in-memory mock — the local cache is a forward-looking
+/// seam for Hive-backed offline reads. The mock satisfies the
+/// contract so feature code can resolve the provider today; once a
+/// Hive-backed implementation lands the swap is a single line.
 final profileLocalDataSourceProvider = Provider<ProfileLocalDataSource>(
   (ref) => MockProfileLocalDataSource(),
 );
@@ -39,6 +58,7 @@ final profileRepositoryProvider = Provider<ProfileRepository>(
   (ref) => ProfileRepositoryImpl(
     remote: ref.watch(profileRemoteDataSourceProvider),
     local: ref.watch(profileLocalDataSourceProvider),
+    ref: ref,
   ),
 );
 

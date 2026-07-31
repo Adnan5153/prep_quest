@@ -17,6 +17,15 @@ class ApiEndpoints {
     defaultValue: 'https://api.dev.prepquest.app',
   );
 
+  /// Quiz Hub REST base. Override at compile time via
+  /// `--dart-define=QUIZ_API_BASE_URL=...` to point at a staging /
+  /// mock backend. Production default is the public Lovable-hosted
+  /// Quiz Hub endpoint documented in `docs/apidoc/api`.
+  static const String quizApiBaseUrl = String.fromEnvironment(
+    'QUIZ_API_BASE_URL',
+    defaultValue: 'https://sadiks-quiz-apihub.lovable.app/api/v1',
+  );
+
   /// Cloud Functions emulator host (used in dev / staging only).
   static const String functionsEmulator = String.fromEnvironment(
     'FUNCTIONS_EMULATOR_HOST',
@@ -32,4 +41,37 @@ class ApiEndpoints {
 
   /// Smart Prompt assistant endpoint.
   static String get smartPrompt => '$baseUrl/ai/smart-prompt';
+
+  // ----- Quiz Hub REST (Phase 35 + Phase 38) -----
+
+  /// `GET /categories` — paginated list.
+  static String get quizCategories => '$quizApiBaseUrl/categories';
+
+  /// `GET /categories/{id}` — single category lookup.
+  static String quizCategoryById(String id) =>
+      '$quizApiBaseUrl/categories/$id';
+
+  /// `GET /categories/{id}/questions` — paginated question bank.
+  static String quizQuestions(String categoryId) =>
+      '$quizApiBaseUrl/categories/$categoryId/questions';
+
+  /// `GET /categories/{id}/questions/random` — random sampling.
+  static String quizRandomQuestions(String categoryId) =>
+      '$quizApiBaseUrl/categories/$categoryId/questions/random';
+
+  /// `GET /questions/{id}` — single question lookup.
+  static String quizQuestionById(String id) =>
+      '$quizApiBaseUrl/questions/$id';
+
+  /// `POST /categories/{id}/questions/bulk-delete` — bulk delete.
+  static String quizBulkDelete(String categoryId) =>
+      '$quizApiBaseUrl/categories/$categoryId/questions/bulk-delete';
+
+  /// `POST /categories/{id}/questions/import` — bulk import.
+  static String quizImportQuestions(String categoryId) =>
+      '$quizApiBaseUrl/categories/$categoryId/questions/import';
+
+  /// `GET /categories/{id}/questions/export` — bulk export.
+  static String quizExportQuestions(String categoryId) =>
+      '$quizApiBaseUrl/categories/$categoryId/questions/export';
 }

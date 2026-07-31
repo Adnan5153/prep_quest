@@ -1,36 +1,68 @@
+import 'package:flutter_riverpod/flutter_riverpod.dart';
+
+import '../../../../core/config/firebase_config.dart';
 import '../../../../core/errors/error_handler.dart';
+import '../../../../core/security/auth_precondition.dart';
 import '../../../../shared/typedefs/result.dart';
-import '../../../quiz_engine/data/datasources/mock_quiz_remote_datasource.dart';
 import '../../../quiz_engine/data/datasources/quiz_remote_datasource.dart';
 import '../../domain/entities/review_question_entity.dart';
 import '../../domain/entities/review_session_entity.dart';
 import '../../domain/repositories/review_repository.dart';
+import '../datasources/firebase_review_remote_datasource.dart';
 import '../datasources/review_local_datasource.dart';
 import '../datasources/review_remote_datasource.dart';
 import '../models/review_question_model.dart';
 import '../models/review_session_model.dart';
 
 /// Concrete repository that delegates to a [ReviewRemoteDataSource]
-/// and the shared quiz mock for bookmark state. All exceptions are
-/// mapped through [ErrorHandler.map] so callers see a uniform
-/// [Failure] vocabulary.
+/// and the canonical quiz data source for bookmark state. All
+/// exceptions are mapped through [ErrorHandler.map] so callers see a
+/// uniform [Failure] vocabulary.
+///
+/// Phase 51 — `toggleBookmark` enforces an authenticated precondition
+/// via [AuthGuard] before delegating to the remote data source.
+///
+/// Phase 55 — production defaults to the Firestore-backed
+/// [FirebaseReviewRemoteDataSource]; the [ReviewLocalDataSource] mock
+/// only activates when Firebase is not configured (offline dev /
+/// tests).
 class ReviewRepositoryImpl implements ReviewRepository {
-  const ReviewRepositoryImpl({
+  ReviewRepositoryImpl({
     required ReviewRemoteDataSource remote,
     required QuizRemoteDataSource quizSource,
+    Ref? ref,
   })  : _remote = remote,
-        _quizSource = quizSource;
+        _quizSource = quizSource,
+        _guard = ref == null ? null : AuthGuard(ref);
 
-  /// Convenience factory that wires the bundled mock data sources.
-  factory ReviewRepositoryImpl.withDefaults() {
+  /// Convenience factory that wires the canonical data sources.
+  /// In production (Firebase configured) the remote is the
+  /// [FirebaseReviewRemoteDataSource] backed by
+  /// `users/{uid}/quiz_sessions` and joined with the canonical quiz
+  /// data. Otherwise the legacy local mock satisfies the contract
+  /// so the review screen can still render in offline dev / tests.
+  factory ReviewRepositoryImpl.withDefaults({
+    required QuizRemoteDataSource quizSource,
+    String? uid,
+  }) {
+    if (FirebaseConfig.isPlatformConfigured && uid != null && uid.isNotEmpty) {
+      return ReviewRepositoryImpl(
+        remote: FirebaseReviewRemoteDataSource(
+          uid: uid,
+          quizSource: quizSource,
+        ),
+        quizSource: quizSource,
+      );
+    }
     return ReviewRepositoryImpl(
       remote: ReviewLocalDataSource(),
-      quizSource: MockQuizRemoteDataSource(),
+      quizSource: quizSource,
     );
   }
 
   final ReviewRemoteDataSource _remote;
   final QuizRemoteDataSource _quizSource;
+  final AuthGuard? _guard;
 
   @override
   Future<Result<List<ReviewSessionEntity>>> getAllReviewSessions() async {
@@ -156,6 +188,7 @@ class ReviewRepositoryImpl implements ReviewRepository {
   @override
   Future<Result<bool>> toggleBookmark(String questionId) async {
     try {
+      _guard?.assertAuthenticated();
       final bool added = await _quizSource.toggleBookmark(questionId);
       return Result.success(added);
     } catch (e, st) {

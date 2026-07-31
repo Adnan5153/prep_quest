@@ -299,6 +299,11 @@ class ProgressionEntity {
     required this.rank,
     required this.streakDays,
     required this.isStreakAtRisk,
+    this.previousLevelThreshold = 0,
+    this.nextLevelThreshold = 0,
+    this.totalLevelUpsCompleted = 0,
+    this.lastLevelUpAt,
+    this.pendingLevelRewards = const <PendingLevelReward>[],
   });
 
   final int totalXp;
@@ -313,6 +318,27 @@ class ProgressionEntity {
   final int streakDays;
   final bool isStreakAtRisk;
 
+  /// Cumulative XP threshold at the start of the previous level
+  /// (or `0` while the user is still at level 1).
+  final int previousLevelThreshold;
+
+  /// Cumulative XP threshold at the start of the next level —
+  /// mirrors `LevelSnapshot.nextLevelThreshold` so the UI does not
+  /// need to recompute it.
+  final int nextLevelThreshold;
+
+  /// Total number of level-ups the user has completed (lifetime).
+  final int totalLevelUpsCompleted;
+
+  /// Wall-clock UTC timestamp of the most recent level-up.
+  final DateTime? lastLevelUpAt;
+
+  /// Pending level-up rewards queued by the canonical funnel. Once
+  /// the user claims them (or the UI drains them), they are removed
+  /// from this list. Populated by `UserProgressService` whenever a
+  /// quiz completion crosses one or more level boundaries.
+  final List<PendingLevelReward> pendingLevelRewards;
+
   double get xpProgress {
     if (xpForNextLevel <= 0) return 0;
     return (xpInLevel / xpForNextLevel).clamp(0.0, 1.0);
@@ -322,6 +348,11 @@ class ProgressionEntity {
     if (maxEnergy <= 0) return 0;
     return (energy / maxEnergy).clamp(0.0, 1.0);
   }
+
+  /// Only unclaimed rewards — convenience for UI queue consumers.
+  List<PendingLevelReward> get unclaimedRewards => pendingLevelRewards
+      .where((PendingLevelReward reward) => !reward.claimed)
+      .toList(growable: false);
 
   ProgressionEntity copyWith({
     int? totalXp,
@@ -335,6 +366,12 @@ class ProgressionEntity {
     ProfileRank? rank,
     int? streakDays,
     bool? isStreakAtRisk,
+    int? previousLevelThreshold,
+    int? nextLevelThreshold,
+    int? totalLevelUpsCompleted,
+    DateTime? lastLevelUpAt,
+    bool clearLastLevelUpAt = false,
+    List<PendingLevelReward>? pendingLevelRewards,
   }) {
     return ProgressionEntity(
       totalXp: totalXp ?? this.totalXp,
@@ -349,6 +386,14 @@ class ProgressionEntity {
       rank: rank ?? this.rank,
       streakDays: streakDays ?? this.streakDays,
       isStreakAtRisk: isStreakAtRisk ?? this.isStreakAtRisk,
+      previousLevelThreshold:
+          previousLevelThreshold ?? this.previousLevelThreshold,
+      nextLevelThreshold: nextLevelThreshold ?? this.nextLevelThreshold,
+      totalLevelUpsCompleted:
+          totalLevelUpsCompleted ?? this.totalLevelUpsCompleted,
+      lastLevelUpAt:
+          clearLastLevelUpAt ? null : (lastLevelUpAt ?? this.lastLevelUpAt),
+      pendingLevelRewards: pendingLevelRewards ?? this.pendingLevelRewards,
     );
   }
 
@@ -366,7 +411,12 @@ class ProgressionEntity {
         other.energyRechargeSecondsRemaining == energyRechargeSecondsRemaining &&
         other.rank == rank &&
         other.streakDays == streakDays &&
-        other.isStreakAtRisk == isStreakAtRisk;
+        other.isStreakAtRisk == isStreakAtRisk &&
+        other.previousLevelThreshold == previousLevelThreshold &&
+        other.nextLevelThreshold == nextLevelThreshold &&
+        other.totalLevelUpsCompleted == totalLevelUpsCompleted &&
+        other.lastLevelUpAt == lastLevelUpAt &&
+        _listEquals(other.pendingLevelRewards, pendingLevelRewards);
   }
 
   @override
@@ -382,6 +432,132 @@ class ProgressionEntity {
         rank,
         streakDays,
         isStreakAtRisk,
+        previousLevelThreshold,
+        nextLevelThreshold,
+        totalLevelUpsCompleted,
+        lastLevelUpAt,
+        Object.hashAll(pendingLevelRewards),
+      );
+
+  static bool _listEquals(
+    List<PendingLevelReward> a,
+    List<PendingLevelReward> b,
+  ) {
+    if (identical(a, b)) return true;
+    if (a.length != b.length) return false;
+    for (int i = 0; i < a.length; i++) {
+      if (a[i] != b[i]) return false;
+    }
+    return true;
+  }
+}
+
+/// A reward queued by the canonical level-up funnel. Persisted as a
+/// field on `ProgressionEntity.pendingLevelRewards` (not a
+/// subcollection) so it ships atomically with the rest of the
+/// progression write.
+@immutable
+class PendingLevelReward {
+  const PendingLevelReward({
+    required this.level,
+    required this.xpBonus,
+    required this.coinBonus,
+    required this.queuedAt,
+    this.badgeId,
+    this.unlockedTitles = const <String>[],
+    this.claimed = false,
+  });
+
+  /// The level that the user just crossed (e.g. `3` means the user
+  /// reached level 3).
+  final int level;
+
+  /// XP bonus granted as a level-up reward (one-shot, claimed once).
+  final int xpBonus;
+
+  /// Coin bonus granted as a level-up reward (one-shot, claimed once).
+  final int coinBonus;
+
+  /// Optional badge id unlocked at this level (e.g. `level_3_clear`).
+  final String? badgeId;
+
+  /// Optional title labels unlocked (e.g. `["Scholar", "Quizzer"]`).
+  final List<String> unlockedTitles;
+
+  /// UTC timestamp when the reward was queued by the canonical funnel.
+  final DateTime queuedAt;
+
+  /// `true` once the user has acknowledged / claimed the reward.
+  /// Claimed rewards remain in the persisted list so subsequent
+  /// devices can reconcile, but the UI queue filters them out.
+  final bool claimed;
+
+  PendingLevelReward copyWith({
+    int? level,
+    int? xpBonus,
+    int? coinBonus,
+    String? badgeId,
+    List<String>? unlockedTitles,
+    DateTime? queuedAt,
+    bool? claimed,
+  }) {
+    return PendingLevelReward(
+      level: level ?? this.level,
+      xpBonus: xpBonus ?? this.xpBonus,
+      coinBonus: coinBonus ?? this.coinBonus,
+      badgeId: badgeId ?? this.badgeId,
+      unlockedTitles: unlockedTitles ?? this.unlockedTitles,
+      queuedAt: queuedAt ?? this.queuedAt,
+      claimed: claimed ?? this.claimed,
+    );
+  }
+
+  /// Decodes a Firestore-shaped map (matching
+  /// [_PendingLevelRewardModel.fromMap]) into a [PendingLevelReward].
+  /// Defensive against missing keys — every field has a safe fallback.
+  factory PendingLevelReward.fromMap(Map<String, dynamic> map) {
+    return PendingLevelReward(
+      level: (map['level'] as num?)?.toInt() ?? 0,
+      xpBonus: (map['xpBonus'] as num?)?.toInt() ?? 0,
+      coinBonus: (map['coinBonus'] as num?)?.toInt() ?? 0,
+      badgeId: map['badgeId'] as String?,
+      unlockedTitles: ((map['unlockedTitles'] as List<dynamic>?) ??
+              <dynamic>[])
+          .whereType<String>()
+          .toList(growable: false),
+      queuedAt:
+          DateTime.tryParse(map['queuedAt'] as String? ?? '')?.toLocal() ??
+              DateTime.now(),
+      claimed: map['claimed'] as bool? ?? false,
+    );
+  }
+
+  @override
+  bool operator ==(Object other) {
+    if (identical(this, other)) return true;
+    if (other is! PendingLevelReward) return false;
+    if (other.level != level) return false;
+    if (other.xpBonus != xpBonus) return false;
+    if (other.coinBonus != coinBonus) return false;
+    if (other.badgeId != badgeId) return false;
+    if (other.queuedAt != queuedAt) return false;
+    if (other.claimed != claimed) return false;
+    if (other.unlockedTitles.length != unlockedTitles.length) return false;
+    for (int i = 0; i < unlockedTitles.length; i++) {
+      if (other.unlockedTitles[i] != unlockedTitles[i]) return false;
+    }
+    return true;
+  }
+
+  @override
+  int get hashCode => Object.hash(
+        level,
+        xpBonus,
+        coinBonus,
+        badgeId,
+        Object.hashAll(unlockedTitles),
+        queuedAt,
+        claimed,
       );
 }
 

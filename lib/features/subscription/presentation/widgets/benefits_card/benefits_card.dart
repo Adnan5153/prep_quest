@@ -1,8 +1,7 @@
-// ignore_for_file: non_const_argument_for_const_parameter
-
 import 'package:flutter/material.dart';
 
 import '../../../../../core/constants/app_colors.dart';
+import '../../../../../core/constants/app_icons.dart';
 import '../../../../../core/constants/app_radius.dart';
 import '../../../../../core/constants/app_sizes.dart';
 import '../../../../../core/constants/app_spacing.dart';
@@ -52,7 +51,7 @@ class SubscriptionBenefitsCard extends StatelessWidget {
                     ),
                     alignment: Alignment.center,
                     child: Icon(
-                      _iconFromCodePoint(benefit.iconCodePoint),
+                      AppIcons.subscriptionFeatureIcons[benefit.icon]!,
                       size: AppSizes.iconMd,
                       color: AppColors.success,
                     ),
@@ -73,8 +72,9 @@ class SubscriptionBenefitsCard extends StatelessWidget {
                         Text(
                           benefit.description,
                           style: theme.textTheme.bodySmall?.copyWith(
-                            color: theme.colorScheme.onSurface
-                                .withValues(alpha: 0.7),
+                            color: theme.colorScheme.onSurface.withValues(
+                              alpha: 0.7,
+                            ),
                           ),
                         ),
                       ],
@@ -88,6 +88,3 @@ class SubscriptionBenefitsCard extends StatelessWidget {
     );
   }
 }
-
-IconData _iconFromCodePoint(int codePoint) =>
-    IconData(codePoint, fontFamily: 'MaterialIcons');

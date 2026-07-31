@@ -1,8 +1,12 @@
 import 'package:flutter/foundation.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
+import '../../../../core/config/firebase_config.dart';
 import '../../../../shared/typedefs/result.dart';
+import '../../../authentication/presentation/providers/auth_providers.dart';
+import '../../../quiz_engine/data/datasources/quiz_remote_datasource.dart';
 import '../../../quiz_engine/presentation/providers/quiz_providers.dart';
+import '../../data/datasources/firebase_review_remote_datasource.dart';
 import '../../data/datasources/review_local_datasource.dart';
 import '../../data/datasources/review_remote_datasource.dart';
 import '../../data/repositories/review_repository_impl.dart';
@@ -19,22 +23,35 @@ import '../../domain/usecases/toggle_bookmark.dart';
 // Data sources & repository providers
 // ---------------------------------------------------------------------------
 
-/// Remote data source for the Review feature. Default is the in-memory
-/// mock that composes seeded sessions from the Quiz Engine mock.
+/// Remote data source for the Review feature.
+///
+/// Production reads from `users/{uid}/quiz_sessions` via
+/// [FirebaseReviewRemoteDataSource]. Falls back to the in-memory
+/// [ReviewLocalDataSource] only when Firebase is not configured (tests
+/// / unconfigured dev).
 final Provider<ReviewRemoteDataSource> reviewRemoteDataSourceProvider =
     Provider<ReviewRemoteDataSource>((Ref ref) {
-  return ReviewLocalDataSource(
-    quizSource: ref.watch(quizRemoteDataSourceProvider),
-  );
+  final QuizRemoteDataSource quizSource = ref.watch(quizRemoteDataSourceProvider);
+  if (FirebaseConfig.isPlatformConfigured) {
+    final String? uid = ref.watch(authStateProvider).user?.id;
+    if (uid != null && uid.isNotEmpty) {
+      return FirebaseReviewRemoteDataSource(
+        uid: uid,
+        quizSource: quizSource,
+      );
+    }
+  }
+  return ReviewLocalDataSource(quizSource: quizSource);
 });
 
 /// Single repository for the Review feature. Reuses the Quiz Engine's
-/// mock data source for shared bookmark state.
+/// data source for shared bookmark state.
 final Provider<ReviewRepository> reviewRepositoryProvider =
     Provider<ReviewRepository>((Ref ref) {
   return ReviewRepositoryImpl(
     remote: ref.watch(reviewRemoteDataSourceProvider),
     quizSource: ref.watch(quizRemoteDataSourceProvider),
+    ref: ref,
   );
 });
 

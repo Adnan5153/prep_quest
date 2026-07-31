@@ -19,6 +19,11 @@ class LeaderboardEntryEntity {
     required this.badges,
     required this.isCurrentUser,
     required this.isPremium,
+    this.accuracyPercent = 0,
+    this.completedCategories = 0,
+    this.completedMissions = 0,
+    this.score = 0,
+    this.seasonId = 'lifetime',
   });
 
   final String userId;
@@ -34,6 +39,26 @@ class LeaderboardEntryEntity {
   final List<String> badges;
   final bool isCurrentUser;
   final bool isPremium;
+
+  /// 0-100 lifetime accuracy. Sourced from
+  /// `UserStatisticsEntity.accuracyPercent` by Phase 44.
+  final int accuracyPercent;
+
+  /// Count of categories with `bestScore >= 60`.
+  final int completedCategories;
+
+  /// Count of missions in `completed | perfect` status.
+  final int completedMissions;
+
+  /// Composite ranking score (see
+  /// [LeaderboardRankingEntity.score]). Surfaced for sort-by-score
+  /// views and admin tooling; the UI defaults to the positional
+  /// `rank` ordering.
+  final int score;
+
+  /// Season partition the row belongs to (`lifetime` / weekly id /
+  /// seasonal id).
+  final String seasonId;
 
   RankChange get rankChange {
     if (previousRank == 0 || previousRank == rank) {
@@ -58,6 +83,11 @@ class LeaderboardEntryEntity {
     List<String>? badges,
     bool? isCurrentUser,
     bool? isPremium,
+    int? accuracyPercent,
+    int? completedCategories,
+    int? completedMissions,
+    int? score,
+    String? seasonId,
   }) {
     return LeaderboardEntryEntity(
       userId: userId ?? this.userId,
@@ -73,6 +103,11 @@ class LeaderboardEntryEntity {
       badges: badges ?? this.badges,
       isCurrentUser: isCurrentUser ?? this.isCurrentUser,
       isPremium: isPremium ?? this.isPremium,
+      accuracyPercent: accuracyPercent ?? this.accuracyPercent,
+      completedCategories: completedCategories ?? this.completedCategories,
+      completedMissions: completedMissions ?? this.completedMissions,
+      score: score ?? this.score,
+      seasonId: seasonId ?? this.seasonId,
     );
   }
 }

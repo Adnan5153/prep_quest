@@ -1,0 +1,396 @@
+rules_version = '2';
+
+// ============================================================================
+// Prep Quest — Firestore Security Rules
+// ----------------------------------------------------------------------------
+// Phase 56. Server-side enforcement is the source of truth. Client-side
+// guards (RoleGuard, AuthPrecondition, the AuthInterceptor) are
+// defence-in-depth and never the primary line of defence.
+//
+// Coverage summary:
+//   * Top-level content collections (categories, subjects, chapters,
+//     lessons, quizzes + their nested questions/sections/examples/summary,
+//     mockTests, questions, achievements, rewards, gamificationState,
+//     leaderboardEntries, contentManifests, subscription_plans,
+//     search_index): read-any-signed-in, write-admin.
+//   * Top-level admin collections (adminLogs, analyticsEvents): write-admin
+//     only.
+//   * aiTutorLogs: owner-readable, write-cloud-function only.
+//   * subscriptions (top-level): read-owner, write-admin (Cloud Functions).
+//   * users/{uid} and every users/{uid}/* subcollection: owner-only.
+//     All owner-writable subcollections are listed explicitly below —
+//     anything not listed falls through to the default deny.
+//
+// Update permissions added in Phase 56:
+//   * users/{uid}/app_user/{docId}         (sign-in seeding + app_user writes)
+//   * users/{uid}/search_recent/{query}    (global search persistence)
+//   * users/{uid}/subscription/current     (subscription status read/write)
+//   * users/{uid}/leaderboard_entries/{id} (per-user leaderboard mirror)
+//   * quizzes/{quizId}/questions/{qid}     (nested quiz questions subcollection)
+//   * lessons/{lessonId} + nested sections/examples/summary subcollections
+//   * subscription_plans/{planId}          (read-authenticated)
+//   * search_index/trending                (read-authenticated)
+//   * content_manifests/{id}               (read-authenticated)
+// ============================================================================
+
+service cloud.firestore {
+  match /databases/{database}/documents {
+
+    // ------------------------------------------------------------------------
+    // Helpers
+    // ------------------------------------------------------------------------
+
+    function isSignedIn() {
+      return request.auth != null;
+    }
+
+    function isOwner(uid) {
+      return isSignedIn() && request.auth.uid == uid;
+    }
+
+    function isAdmin() {
+      return isSignedIn() &&
+        exists(/databases/$(database)/documents/users/$(request.auth.uid)) &&
+        get(/databases/$(database)/documents/users/$(request.auth.uid)).data.role == 'admin';
+    }
+
+    function isPremium() {
+      return isSignedIn() &&
+        exists(/databases/$(database)/documents/users/$(request.auth.uid)) &&
+        (
+          get(/databases/$(database)/documents/users/$(request.auth.uid)).data.role == 'premium' ||
+          get(/databases/$(database)/documents/users/$(request.auth.uid)).data.role == 'admin'
+        );
+    }
+
+    function hasFields(data, fields) {
+      // Firestore rules don't have list iteration with a predicate, so
+      // we check the four well-known coin-ledger fields inline. The
+      // ledger schema is fixed (source, sourceId, amount, createdAt),
+      // so this is safe to hard-code.
+      return ('source' in data)
+        && ('sourceId' in data)
+        && ('amount' in data)
+        && ('createdAt' in data);
+    }
+
+    // ------------------------------------------------------------------------
+    // Public content catalogues (read = signed in; write = admin).
+    // Lesson and quiz content is read-authenticated because every
+    // signed-in user needs it to render the home / playground / search
+    // flows. Writes always come from admin tooling or Cloud Functions.
+    // ------------------------------------------------------------------------
+
+    match /categories/{docId} {
+      allow read: if isSignedIn();
+      allow write: if isAdmin();
+    }
+
+    match /subjects/{docId} {
+      allow read: if isSignedIn();
+      allow write: if isAdmin();
+    }
+
+    match /chapters/{docId} {
+      allow read: if isSignedIn();
+      allow write: if isAdmin();
+    }
+
+    // lessons/{lessonId} — top-level lesson catalogue. Nested read paths
+    // for sections/examples/summary subcollections also need explicit
+    // rules, which are declared below.
+    match /lessons/{lessonId} {
+      allow read: if isSignedIn();
+      allow write: if isAdmin();
+
+      // Nested lesson bodies. Reads are open to any signed-in user;
+      // writes are admin-only. Each subcollection uses the same pattern
+      // so a client missing one of them gets a clear permission-denied
+      // instead of falling through to the default deny.
+      match /sections/{sectionId} {
+        allow read: if isSignedIn();
+        allow write: if isAdmin();
+      }
+      match /examples/{exampleId} {
+        allow read: if isSignedIn();
+        allow write: if isAdmin();
+      }
+      match /summary/{summaryId} {
+        allow read: if isSignedIn();
+        allow write: if isAdmin();
+      }
+    }
+
+    match /mockTests/{docId} {
+      allow read: if isSignedIn();
+      allow write: if isAdmin();
+    }
+
+    match /questions/{docId} {
+      allow read: if isSignedIn();
+      allow write: if isAdmin();
+    }
+
+    match /achievements/{docId} {
+      allow read: if isSignedIn();
+      allow write: if isAdmin();
+    }
+
+    match /rewards/{docId} {
+      allow read: if isSignedIn();
+      allow write: if isAdmin();
+    }
+
+    match /gamificationState/{docId} {
+      allow read: if isSignedIn();
+      allow write: if isAdmin();
+    }
+
+    match /leaderboardEntries/{docId} {
+      allow read: if isSignedIn();
+      allow write: if isAdmin();
+    }
+
+    // quizzes/{quizId} + nested questions/{questionId}. The
+    // firebase_quiz_remote_datasource reads both:
+    //   * quiz metadata from quizzes/{quizId}
+    //   * each question from quizzes/{quizId}/questions/{questionId}
+    match /quizzes/{quizId} {
+      allow read: if isSignedIn();
+      allow write: if isAdmin();
+
+      match /questions/{questionId} {
+        allow read: if isSignedIn();
+        allow write: if isAdmin();
+      }
+    }
+
+    // Subscription plan catalogue (PricingPage). Public to signed-in
+    // users so the /subscription route can render plans; writes go
+    // through admin tooling / Stripe webhook.
+    match /subscription_plans/{planId} {
+      allow read: if isSignedIn();
+      allow write: if isAdmin();
+    }
+
+    // Global search collections. Read-only for signed-in clients — the
+    // trending index is published by a daily Cloud Function.
+    match /search_index/{docId} {
+      allow read: if isSignedIn();
+      allow write: if isAdmin();
+    }
+
+    // Offline content manifests. Read-authenticated so the offline pack
+    // downloader can enumerate available manifests; writes are admin.
+    match /content_manifests/{docId} {
+      allow read: if isSignedIn();
+      allow write: if isAdmin();
+    }
+
+    match /aiTutorLogs/{docId} {
+      allow read: if isSignedIn() && isOwner(resource.data.uid);
+      // Cloud Functions only — no client writes.
+      allow write: if false;
+    }
+
+    // ------------------------------------------------------------------------
+    // Subscriptions — read-owner, write-admin
+    // ------------------------------------------------------------------------
+
+    match /subscriptions/{docId} {
+      allow read: if isSignedIn() && resource.data.uid == request.auth.uid;
+      allow write: if isAdmin();
+    }
+
+    // ------------------------------------------------------------------------
+    // Admin / analytics — write-admin only
+    // ------------------------------------------------------------------------
+
+    match /adminLogs/{docId} {
+      allow read: if isAdmin();
+      allow write: if isAdmin();
+    }
+
+    match /analyticsEvents/{docId} {
+      allow read: if isAdmin();
+      allow write: if isAdmin();
+    }
+
+    // ------------------------------------------------------------------------
+    // users/{uid} — owner-only.
+    //
+    // The top-level doc + every subcollection is matched explicitly.
+    // Adding a new users/{uid}/* subcollection requires a new
+    // `match /users/{userId}/{subName}/{docId}` block; the default deny
+    // at the bottom of this file will reject reads/writes to anything
+    // not listed.
+    // ------------------------------------------------------------------------
+
+    match /users/{userId} {
+      allow read, update: if isOwner(userId);
+      // Clients may create their own user doc on first sign-in only if
+      // they are authenticated AND the doc id matches their auth uid.
+      allow create: if isSignedIn() && request.auth.uid == userId;
+      // Soft-delete via Cloud Function; clients never delete users.
+      allow delete: if false;
+
+      // ---- users/{uid}/* subcollections ----
+
+      match /progression/{docId} {
+        allow read, write: if isOwner(userId);
+      }
+
+      match /study_stats/{docId} {
+        allow read, write: if isOwner(userId);
+      }
+
+      match /statistics/{docId} {
+        allow read, write: if isOwner(userId);
+      }
+
+      match /streak/{docId} {
+        allow read, write: if isOwner(userId);
+      }
+
+      match /playground/{docId} {
+        allow read, write: if isOwner(userId);
+      }
+
+      match /quiz_sessions/{docId} {
+        allow read: if isOwner(userId);
+        allow create, update: if isOwner(userId)
+          && request.resource.data.uid == userId;
+        allow delete: if isOwner(userId);
+      }
+
+      match /quiz_history/{docId} {
+        allow read: if isOwner(userId);
+        allow create, update: if isOwner(userId)
+          && request.resource.data.uid == userId;
+        allow delete: if isOwner(userId);
+      }
+
+      match /category_progress/{docId} {
+        allow read, write: if isOwner(userId);
+      }
+
+      match /category_statistics/{docId} {
+        allow read, write: if isOwner(userId);
+      }
+
+      match /profile/{docId} {
+        allow read, write: if isOwner(userId);
+      }
+
+      // Phase 56 — app_user is the gamification/app-state mirror
+      // written by AppUserRepositoryImpl.* and seeded by
+      // _seedAppUserDoc on sign-in. Without this rule the very first
+      // sign-in throws permission-denied when seeding the doc.
+      match /app_user/{docId} {
+        allow read, write: if isOwner(userId);
+      }
+
+      match /mission_progress/{docId} {
+        allow read, write: if isOwner(userId);
+      }
+
+      match /coin_ledger/{docId} {
+        allow read: if isOwner(userId);
+        allow create: if isOwner(userId)
+          && request.resource.data.uid == userId
+          && hasFields(request.resource.data, ['source', 'sourceId', 'amount', 'createdAt']);
+        // Append-only — entries can never be mutated or removed.
+        allow update, delete: if false;
+      }
+
+      match /bookmarks/{docId} {
+        allow read: if isOwner(userId);
+        allow create, update: if isOwner(userId)
+          && request.resource.data.uid == userId;
+        allow delete: if isOwner(userId);
+      }
+
+      match /notes/{docId} {
+        allow read: if isOwner(userId);
+        allow create, update: if isOwner(userId)
+          && request.resource.data.uid == userId;
+        allow delete: if isOwner(userId);
+      }
+
+      match /highlights/{docId} {
+        allow read: if isOwner(userId);
+        allow create, update: if isOwner(userId)
+          && request.resource.data.uid == userId;
+        allow delete: if isOwner(userId);
+      }
+
+      match /ai_notes/{docId} {
+        allow read: if isOwner(userId);
+        allow create, update: if isOwner(userId)
+          && request.resource.data.uid == userId;
+        allow delete: if isOwner(userId);
+      }
+
+      match /notifications/{docId} {
+        allow read: if isOwner(userId);
+        allow create, update: if isOwner(userId)
+          && request.resource.data.uid == userId;
+        allow delete: if isOwner(userId);
+      }
+
+      match /fcm_tokens/{deviceId} {
+        allow read: if isOwner(userId);
+        allow create, update: if isOwner(userId)
+          && request.resource.data.uid == userId;
+        allow delete: if isOwner(userId);
+      }
+
+      // Per-user settings/preferences (theme, language, notifications).
+      match /settings/{docId} {
+        allow read, write: if isOwner(userId);
+      }
+
+      // Phase 56 — per-user leaderboard mirror written by
+      // LeaderboardService after each quiz completion.
+      match /leaderboard_entries/{docId} {
+        allow read: if isOwner(userId);
+        allow create, update: if isOwner(userId)
+          && request.resource.data.uid == userId;
+        allow delete: if isOwner(userId);
+      }
+
+      // Phase 56 — global-search persistence. Each doc id is the
+      // lowercase query string the user typed. Updatable so the
+      // timestamp can be refreshed; deletable so old entries can
+      // age out of the recent list.
+      match /search_recent/{docId} {
+        allow read: if isOwner(userId);
+        allow create, update: if isOwner(userId)
+          && request.resource.data.uid == userId;
+        allow delete: if isOwner(userId);
+      }
+
+      // Phase 56 — per-user subscription state. Read by the
+      // subscription feature on every screen open; written by
+      // Cloud Functions when Stripe webhooks fire. Because both
+      // paths run as the end user, the owner may also write the
+      // local mirror — the server-side function remains the source
+      // of truth.
+      match /subscription/{docId} {
+        allow read, write: if isOwner(userId)
+          || isAdmin();
+      }
+    }
+
+    // ------------------------------------------------------------------------
+    // Default deny — any collection/document path not matched above
+    // returns permission-denied. This is what guarantees a brand-new
+    // users/{uid}/* subcollection can't be silently written to until an
+    // explicit `match` block is added.
+    // ------------------------------------------------------------------------
+
+    match /{document=**} {
+      allow read, write: if false;
+    }
+  }
+}

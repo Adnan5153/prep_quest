@@ -10,10 +10,17 @@ enum WorldStepKind { regular, reward, milestone, boss }
 
 class WorldStep {
   const WorldStep({
+    this.id = '',
     required this.kind,
     this.subtitle = '',
     this.isCompleted = false,
   });
+
+  /// Stable identifier propagated from the source category (e.g. the
+  /// Quiz Hub category id). When empty, [WorldLayout.build] falls back
+  /// to a synthetic `node-{index}` id for backwards compatibility
+  /// with callers that haven't been migrated yet.
+  final String id;
 
   final WorldStepKind kind;
   final String subtitle;
@@ -160,7 +167,11 @@ class WorldLayout {
 
       nodes.add(
         WorldNodePlacement(
-          id: 'node-$i',
+          // Prefer the stable id propagated from the source category
+          // (e.g. Quiz Hub category id). Fall back to a synthetic
+          // `node-{index}` id for any caller still passing steps
+          // without an id (legacy seed snapshots, tests).
+          id: step.id.isNotEmpty ? step.id : 'node-$i',
           step: step,
           position:
               anchor +

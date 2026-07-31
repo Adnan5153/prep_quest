@@ -243,7 +243,7 @@ class RewardsRepositoryImpl implements RewardsRepository {
       ];
       _datasource.write(UserRewardsStateModel(
         totalXP: model.totalXP,
-        totalCoins: model.totalCoins,
+        totalCoins: 0,
         level: model.level,
         streak: model.streak,
         badges: updatedBadges,
@@ -366,7 +366,6 @@ class RewardsRepositoryImpl implements RewardsRepository {
     bool celebrateChest = false,
   }) {
     int xpDelta = 0;
-    int coinDelta = 0;
     final List<BadgeEntry> newBadges = <BadgeEntry>[...currentState.badges];
     final Set<String> existingIds =
         currentState.badges.map((BadgeEntry b) => b.id).toSet();
@@ -379,8 +378,8 @@ class RewardsRepositoryImpl implements RewardsRepository {
       switch (grant) {
         case XpReward xp:
           xpDelta += xp.amount;
-        case CoinReward coin:
-          coinDelta += coin.amount;
+        case CoinReward _:
+          break;
         case BadgeReward badge:
           if (!existingIds.contains(badge.id)) {
             newBadges.add(BadgeEntry(
@@ -409,7 +408,6 @@ class RewardsRepositoryImpl implements RewardsRepository {
     }
 
     final int newTotalXP = currentState.totalXP + xpDelta;
-    final int newTotalCoins = currentState.totalCoins + coinDelta;
     final LevelProgress nextLevel = _catalog.levelFor(newTotalXP);
     if (nextLevel.currentLevel > currentState.level.currentLevel) {
       leveledUp = true;
@@ -425,7 +423,6 @@ class RewardsRepositoryImpl implements RewardsRepository {
 
     final UserRewardsState newState = currentState.copyWith(
       totalXP: newTotalXP,
-      totalCoins: newTotalCoins,
       level: nextLevel,
       badges: newBadges,
       chests: newChests,
@@ -460,7 +457,7 @@ class RewardsRepositoryImpl implements RewardsRepository {
     final UserRewardsStateModel previous = _datasource.read();
     _datasource.write(UserRewardsStateModel(
       totalXP: state.totalXP,
-      totalCoins: state.totalCoins,
+      totalCoins: 0,
       level: LevelProgressModel(
         currentLevel: state.level.currentLevel,
         currentXP: state.level.currentXP,

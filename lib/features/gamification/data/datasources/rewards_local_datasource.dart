@@ -24,7 +24,7 @@ class RewardsLocalDataSource {
     final DateTime now = _clock();
     return UserRewardsStateModel(
       totalXP: 320,
-      totalCoins: 180,
+      totalCoins: 0,
       level: const LevelProgressModel(
         currentLevel: 4,
         currentXP: 20,

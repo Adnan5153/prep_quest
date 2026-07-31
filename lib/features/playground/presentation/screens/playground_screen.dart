@@ -3,17 +3,21 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 
 import '../../../../core/constants/app_strings.dart';
+import '../../../../core/services/level_curve.dart';
 import '../../../../core/widgets/custom_bottom_navigation.dart';
 import '../../../../router.dart';
 import '../../../notifications/presentation/providers/notification_provider.dart';
 import '../../../profile/presentation/providers/profile_providers.dart';
+import '../../../statistics/domain/entities/user_statistics_entity.dart';
+import '../../../statistics/presentation/providers/statistics_provider.dart';
 import '../../../profile/presentation/states/profile_state.dart';
 import '../../../profile/presentation/utils/profile_visual_mapper.dart';
 import '../../../profile/domain/entities/user_profile.dart';
 import '../constants/playground_constants.dart';
 import '../constants/playground_sizes.dart';
 import '../constants/playground_strings.dart';
-import '../providers/playground_provider.dart';
+import '../providers/playground_providers.dart';
+import '../providers/world_steps_provider.dart';
 import '../utils/world_layout.dart';
 import '../widgets/buildings/academy_building.dart';
 import '../widgets/buildings/library_building.dart';
@@ -26,7 +30,6 @@ import '../widgets/decorations/mountain.dart';
 import '../widgets/decorations/playground_particle_layer.dart';
 import '../widgets/decorations/river.dart';
 import '../widgets/decorations/tree.dart';
-import '../widgets/locked_level.dart';
 import '../widgets/map/playground_camera.dart';
 import '../widgets/map/playground_legend.dart';
 import '../widgets/map/playground_map.dart';
@@ -52,12 +55,6 @@ class PlaygroundScreen extends ConsumerStatefulWidget {
 
 class _PlaygroundScreenState extends ConsumerState<PlaygroundScreen> {
   late final PlaygroundCamera _camera = PlaygroundCamera();
-  late final ValueNotifier<PlaygroundProgress> _progressNotifier =
-      ValueNotifier<PlaygroundProgress>(PlaygroundProgress.seed);
-  late final PlaygroundProvider _provider =
-      PlaygroundProvider(initial: _progressNotifier.value);
-
-  static const int _activeIndex = 2;
   static const int _playgroundTabIndex = 0;
 
   @override
@@ -74,8 +71,7 @@ class _PlaygroundScreenState extends ConsumerState<PlaygroundScreen> {
 
   @override
   void dispose() {
-    _provider.dispose();
-    _progressNotifier.dispose();
+    _camera.dispose();
     super.dispose();
   }
 
@@ -114,14 +110,8 @@ class _PlaygroundScreenState extends ConsumerState<PlaygroundScreen> {
   }
 
   void _handleNodeTap(WorldNodePlacement node) {
-    final progress = _provider.progress;
-    final isLocked = !progress.isUnlocked(node.id);
-    final isCompleted = progress.isCompleted(node.id);
-
-    if (isLocked) {
-      _showLockedDialog(node);
-      return;
-    }
+    final progress = ref.read(playgroundProgressProvider);
+    final isCompleted = progress.completedLevelIds.contains(node.id);
 
     if (isCompleted) {
       _showRewardPopup(node);
@@ -152,27 +142,6 @@ class _PlaygroundScreenState extends ConsumerState<PlaygroundScreen> {
     );
   }
 
-  void _showLockedDialog(WorldNodePlacement node) {
-    showDialog<void>(
-      context: context,
-      builder: (dialogContext) => Dialog(
-        child: LockedLevel(
-          visual: LockedLevelVisual(
-            levelNumber: _nodeIndex(node.id) + 1,
-            title: node.step.subtitle.isEmpty ? 'Locked' : node.step.subtitle,
-            subtitle: 'Complete the previous node to unlock this one',
-            requirements: const <LockedLevelRequirementSpec>[
-              LockedLevelRequirementSpec(
-                kind: LockedLevelRequirement.level,
-                label: 'Reach the required level',
-              ),
-            ],
-          ),
-        ),
-      ),
-    );
-  }
-
   void _showRewardPopup(WorldNodePlacement node) {
     ScaffoldMessenger.of(context).showSnackBar(
       SnackBar(
@@ -190,17 +159,23 @@ class _PlaygroundScreenState extends ConsumerState<PlaygroundScreen> {
   }
 
   void _openLibrary(WorldMilestonePlacement milestone) {
+    final CategoryStatisticsEntity? stats = _libraryStats(milestone);
+    final int chapterCount = stats?.totalQuestions ?? 8;
+    final int completedChapters = stats?.correct ?? 0;
+    final int unlockedLessonCount = stats?.wrong ?? 0;
+    final int estimatedReadingMinutes = (chapterCount * 2).clamp(5, 60);
+
     LibraryBottomSheet.show(
       context,
       visual: LibrarySheetVisual(
         id: milestone.id,
-        title: 'Library',
-        topic: 'Reference materials',
+        title: PlaygroundStrings.librarySheetTitle,
+        topic: PlaygroundStrings.librarySheetSubtitle,
         description: 'Open the library to read chapters and formulas.',
-        chapterCount: 8,
-        completedChapters: 3,
-        unlockedLessonCount: 5,
-        estimatedReadingMinutes: 12,
+        chapterCount: chapterCount,
+        completedChapters: completedChapters,
+        unlockedLessonCount: unlockedLessonCount,
+        estimatedReadingMinutes: estimatedReadingMinutes,
       ),
       onEnterLibrary: () => context.goNamed(
         AppRoutes.lessons,
@@ -209,16 +184,25 @@ class _PlaygroundScreenState extends ConsumerState<PlaygroundScreen> {
     );
   }
 
-  int _nodeIndex(String id) {
-    const prefix = 'node-';
-    if (!id.startsWith(prefix)) return 0;
-    return int.tryParse(id.substring(prefix.length)) ?? 0;
+  CategoryStatisticsEntity? _libraryStats(WorldMilestonePlacement milestone) {
+    final AsyncValue<List<CategoryStatisticsEntity>> live =
+        ref.watch(categoryStatisticsLiveProvider);
+    return live.maybeWhen(
+      data: (List<CategoryStatisticsEntity> rows) {
+        for (final CategoryStatisticsEntity row in rows) {
+          if (row.categoryId == milestone.id) return row;
+        }
+        return null;
+      },
+      orElse: () => null,
+    );
   }
 
   @override
   Widget build(BuildContext context) {
     final ProfileState state = ref.watch(profileControllerProvider);
     final UserProfile? profile = state.profile;
+    final WorldStepsSnapshot snapshot = ref.watch(worldStepsProvider);
     return Scaffold(
       body: LayoutBuilder(
         builder: (context, constraints) {
@@ -226,8 +210,9 @@ class _PlaygroundScreenState extends ConsumerState<PlaygroundScreen> {
               ? constraints.maxWidth
               : PlaygroundSizes.mapWorldWidth;
           final layout = _PlaygroundStageData.layout(
-            activeIndex: _activeIndex,
+            activeIndex: snapshot.activeIndex,
             worldWidth: worldWidth,
+            steps: snapshot.steps,
           );
 
           return Stack(
@@ -274,11 +259,11 @@ class _PlaygroundScreenState extends ConsumerState<PlaygroundScreen> {
                         ),
                   xp: profile != null
                       ? ProfileVisualMapper.toXpVisual(profile)
-                      : const XpVisual(
+                      : XpVisual(
                           totalXp: 0,
                           userLevel: 1,
                           xpInLevel: 0,
-                          xpForNextLevel: 100,
+                          xpForNextLevel: LevelCurve.defaultCurve.xpRequiredForLevel(1),
                         ),
                   coins: profile != null
                       ? ProfileVisualMapper.toCoinVisual(profile)
@@ -320,30 +305,25 @@ class _PlaygroundScreenState extends ConsumerState<PlaygroundScreen> {
 class _PlaygroundStageData {
   _PlaygroundStageData._();
 
-  static const List<WorldStep> _steps = <WorldStep>[
-    WorldStep(
-      kind: WorldStepKind.regular,
-      subtitle: 'Foundations',
-      isCompleted: true,
-    ),
-    WorldStep(
-      kind: WorldStepKind.regular,
-      subtitle: 'Grammar',
-      isCompleted: true,
-    ),
-    WorldStep(kind: WorldStepKind.regular, subtitle: 'Mathematics'),
-    WorldStep(kind: WorldStepKind.milestone, subtitle: 'Library'),
-    WorldStep(kind: WorldStepKind.reward, subtitle: 'Daily Reward'),
-    WorldStep(kind: WorldStepKind.regular, subtitle: 'Mock Test'),
-    WorldStep(kind: WorldStepKind.boss, subtitle: 'BCS Boss'),
-  ];
-
   static WorldLayoutSpec layout({
     required int activeIndex,
     required double worldWidth,
+    required List<WorldStep> steps,
   }) {
+    if (steps.isEmpty) {
+      // Render an empty world map rather than crashing when the
+      // categories stream is still loading.
+      return WorldLayout.build(
+        steps: const <WorldStep>[
+          WorldStep(kind: WorldStepKind.regular, subtitle: ''),
+        ],
+        activeIndex: 0,
+        seed: 23,
+        worldWidth: worldWidth,
+      );
+    }
     return WorldLayout.build(
-      steps: _steps,
+      steps: steps,
       activeIndex: activeIndex,
       seed: 23,
       worldWidth: worldWidth,
@@ -462,7 +442,9 @@ class _PlaygroundStageData {
         progress: progress,
         progressState: progressState,
         title: step.subtitle,
-        subtitle: node.isLocked ? 'Locked' : step.subtitle,
+        subtitle: node.isLocked
+            ? PlaygroundStrings.lockedLevelLabel
+            : step.subtitle,
         badgeKind: badgeKind,
         isInteractive: isInteractive,
         showLabel: true,

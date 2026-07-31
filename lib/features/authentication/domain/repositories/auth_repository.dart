@@ -41,6 +41,15 @@ abstract class AuthRepository {
     required String displayName,
   });
 
+  /// Signs the user in via Google.
+  ///
+  /// The returned [UserEntity] carries the identity fields Google
+  /// provides at sign-in (display name, email, photo URL, verified
+  /// flag) plus the default `examTrack = ExamTrack.other` so the
+  /// router still routes a brand-new user through the
+  /// profile-completion screen on first sign-in.
+  Future<Result<AuthSessionEntity>> signInWithGoogle();
+
   /// Sends a password-reset email to [email].
   Future<Result<void>> sendPasswordReset({required String email});
 

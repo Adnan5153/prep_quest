@@ -3,9 +3,12 @@ import 'dart:async';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../../../../core/errors/failures.dart';
+import '../../../../core/services/note_service.dart';
 import '../../../../shared/typedefs/result.dart';
+import '../../../authentication/presentation/providers/auth_providers.dart';
 import '../../data/datasources/notes_local_datasource.dart';
 import '../../data/datasources/notes_remote_datasource.dart';
+import '../../data/models/note_model.dart';
 import '../../data/repositories/notes_repository_impl.dart';
 import '../../domain/entities/ai_note_entity.dart';
 import '../../domain/entities/highlight_entity.dart';
@@ -27,19 +30,52 @@ import 'notes_filter_provider.dart';
 import 'notes_state.dart';
 
 final notesLocalDataSourceProvider = Provider<NotesLocalDataSource>(
-  (Ref ref) => NotesLocalDataSource(),
+  (Ref ref) {
+    final NotesLocalDataSource ds = NotesLocalDataSource();
+    ref.onDispose(ds.dispose);
+    return ds;
+  },
 );
 
-final notesRemoteDatasourceProvider = Provider<NotesRemoteDatasource>(
-  (Ref ref) => const NotesRemoteDatasource(),
-);
+/// Resolves the authenticated uid from [authStateProvider]. Returns
+/// an empty string for guests / unauthenticated users — the remote
+/// datasource treats empty uids as a no-op (Firestore writes
+/// skipped).
+final notesCurrentUidProvider = Provider<String>((Ref ref) {
+  final auth = ref.watch(authStateProvider);
+  return auth.user?.id ?? '';
+});
 
-final notesRepositoryProvider = Provider<NotesRepository>(
-  (Ref ref) => NotesRepositoryImpl(
+/// Firestore-backed remote source. The single-writer [NoteService]
+/// owns the canonical schema.
+final notesRemoteDatasourceProvider =
+    Provider<NotesRemoteDatasource>((Ref ref) {
+  return NotesRemoteDatasource(
+    service: ref.watch(noteServiceProvider),
+    uidProvider: () => ref.read(notesCurrentUidProvider),
+  );
+});
+
+/// Firestore repository — remote-first, local cache for offline +
+/// filter/sort/search. Realtime updates from
+/// [userNotesStreamProvider] flow into the local mirror via the
+/// `remoteStreamFactory` so widgets refresh without manual refresh.
+final notesRepositoryProvider = Provider<NotesRepository>((Ref ref) {
+  final NotesRepositoryImpl impl = NotesRepositoryImpl(
     local: ref.watch(notesLocalDataSourceProvider),
     remote: ref.watch(notesRemoteDatasourceProvider),
-  ),
-);
+    remoteStreamFactory: () => ref.watch(userNotesStreamProvider).maybeWhen(
+          data: (List<NoteModel> rows) => Stream<List<NoteModel>>.value(rows),
+          orElse: () => Stream<List<NoteModel>>.value(
+            ref.read(notesLocalDataSourceProvider).readAll(),
+          ),
+        ),
+    preferRemote: true,
+    ref: ref,
+  );
+  ref.onDispose(impl.cancelRemoteSubscription);
+  return impl;
+});
 
 final getAllNotesUseCaseProvider = Provider<GetAllNotes>(
   (Ref ref) => GetAllNotes(ref.watch(notesRepositoryProvider)),
@@ -107,7 +143,20 @@ class NotesController extends StateNotifier<NotesViewState> {
         _saveHighlight = saveHighlight,
         _saveAiNote = saveAiNote,
         _ref = ref,
-        super(NotesViewState.initial);
+        super(NotesViewState.initial) {
+    _remoteSubscription = _ref.listen<AsyncValue<List<NoteModel>>>(
+      userNotesStreamProvider,
+      (AsyncValue<List<NoteModel>>? previous,
+          AsyncValue<List<NoteModel>> next) {
+        next.whenData((List<NoteModel> rows) {
+          _ref.read(notesLocalDataSourceProvider).writeAll(rows);
+          if (state.status == NotesStatus.ready) {
+            hydrate(offset: 0);
+          }
+        });
+      },
+    );
+  }
 
   final GetAllNotes _getAllNotes;
   final GetPinnedNotes _getPinnedNotes;
@@ -120,6 +169,8 @@ class NotesController extends StateNotifier<NotesViewState> {
   final SaveHighlight _saveHighlight;
   final SaveAiNote _saveAiNote;
   final Ref _ref;
+
+  ProviderSubscription<AsyncValue<List<NoteModel>>>? _remoteSubscription;
 
   final StreamController<NoteFeedback> _feedback =
       StreamController<NoteFeedback>.broadcast();
@@ -450,6 +501,7 @@ class NotesController extends StateNotifier<NotesViewState> {
 
   @override
   void dispose() {
+    _remoteSubscription?.close();
     _feedback.close();
     super.dispose();
   }

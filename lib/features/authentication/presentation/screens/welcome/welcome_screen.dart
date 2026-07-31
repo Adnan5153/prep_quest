@@ -1,6 +1,5 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
-import 'package:go_router/go_router.dart';
 
 import '../../../../../core/constants/app_colors.dart';
 import '../../../../../core/constants/app_radius.dart';
@@ -8,23 +7,40 @@ import '../../../../../core/constants/app_sizes.dart';
 import '../../../../../core/constants/app_spacing.dart';
 import '../../../../../core/constants/app_strings.dart';
 import '../../../../../core/widgets/primary_button.dart';
-import '../../../../../core/widgets/secondary_button.dart';
-import '../../../../../router.dart';
+import '../../controllers/auth_controller.dart';
 import '../../providers/auth_providers.dart';
 import '../../constants/auth_strings.dart';
 
-/// Welcome / landing screen — the entry point for unauthenticated
-/// users giving them three ways to proceed (sign-up, sign-in,
-/// guest).
-class WelcomeScreen extends ConsumerWidget {
+/// Welcome / landing screen — the single entry point for unauthenticated
+/// users. The whole flow collapses to one action: tap "Continue with
+/// Google" and let [AuthController.signInWithGoogle] decide whether the
+/// visitor is a brand-new user (route to /complete-profile) or a
+/// returning user with a completed profile (route straight to the main
+/// app).
+class WelcomeScreen extends ConsumerStatefulWidget {
   const WelcomeScreen({super.key});
 
-  void _bypassAuthentication(WidgetRef ref) {
-    ref.read(authStateProvider.notifier).bypassAuthentication();
+  @override
+  ConsumerState<WelcomeScreen> createState() => _WelcomeScreenState();
+}
+
+class _WelcomeScreenState extends ConsumerState<WelcomeScreen> {
+  bool _isWorking = false;
+
+  Future<void> _signInWithGoogle() async {
+    if (_isWorking) return;
+    setState(() => _isWorking = true);
+    final AuthController controller =
+        ref.read(authStateProvider.notifier);
+    try {
+      await controller.signInWithGoogle();
+    } finally {
+      if (mounted) setState(() => _isWorking = false);
+    }
   }
 
   @override
-  Widget build(BuildContext context, WidgetRef ref) {
+  Widget build(BuildContext context) {
     final ThemeData theme = Theme.of(context);
     return Scaffold(
       body: SafeArea(
@@ -56,10 +72,12 @@ class WelcomeScreen extends ConsumerWidget {
                               begin: Alignment.topLeft,
                               end: Alignment.bottomRight,
                             ),
-                            borderRadius: BorderRadius.circular(AppRadius.xl),
+                            borderRadius:
+                                BorderRadius.circular(AppRadius.xl),
                             boxShadow: <BoxShadow>[
                               BoxShadow(
-                                color: AppColors.primary.withValues(alpha: 0.3),
+                                color:
+                                    AppColors.primary.withValues(alpha: 0.3),
                                 blurRadius: 24,
                                 offset: const Offset(0, 12),
                               ),
@@ -90,37 +108,17 @@ class WelcomeScreen extends ConsumerWidget {
                         ),
                       ),
                       const SizedBox(height: AppSpacing.xxxl),
-                      _FeatureHighlights(),
+                      const _FeatureHighlights(),
                       const SizedBox(height: AppSpacing.huge),
                       PrimaryButton(
                         text: AuthStrings.welcomePrimaryCta,
-                        onPressed: () => context.go(AppRoutes.register),
+                        onPressed: _isWorking ? null : _signInWithGoogle,
                         fullWidth: true,
                         variant: PrimaryButtonVariant.gradient,
                         size: PrimaryButtonSize.large,
                         shape: PrimaryButtonShape.pill,
-                        icon: Icons.arrow_forward_rounded,
-                      ),
-                      const SizedBox(height: AppSpacing.md),
-                      SecondaryButton(
-                        text: AuthStrings.welcomeSecondaryCta,
-                        onPressed: () => _bypassAuthentication(ref),
-                        fullWidth: true,
-                        size: SecondaryButtonSize.large,
-                        shape: SecondaryButtonShape.pill,
-                        variant: SecondaryButtonVariant.outlined,
-                        icon: Icons.login_rounded,
-                      ),
-                      const SizedBox(height: AppSpacing.lg),
-                      TextButton(
-                        onPressed: () => context.go(AppRoutes.login),
-                        child: Text(
-                          AuthStrings.welcomeContinueAsGuest,
-                          style: theme.textTheme.bodyMedium?.copyWith(
-                            color: theme.colorScheme.onSurfaceVariant,
-                            fontWeight: FontWeight.w600,
-                          ),
-                        ),
+                        icon: Icons.g_mobiledata_rounded,
+                        isLoading: _isWorking,
                       ),
                       const SizedBox(height: AppSpacing.xl),
                       Text(
@@ -143,6 +141,8 @@ class WelcomeScreen extends ConsumerWidget {
 }
 
 class _FeatureHighlights extends StatelessWidget {
+  const _FeatureHighlights();
+
   @override
   Widget build(BuildContext context) {
     final List<_Feature> features = <_Feature>[

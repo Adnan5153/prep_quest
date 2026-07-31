@@ -1,0 +1,121 @@
+rules_version = '2';
+
+// ============================================================================
+// Prep Quest — Cloud Storage Security Rules
+// ----------------------------------------------------------------------------
+// Phase 56. All paths default-deny. Exposed buckets:
+//   * users/{uid}/**                  — per-user private assets (avatars,
+//                                       quiz answer uploads, custom content
+//                                       uploads).
+//   * content/**                      — guidebook / lesson assets
+//                                       (read-authenticated, write-admin).
+//   * content/quizzes/{quizId}/**     — quiz-specific assets (figures,
+//                                       covers); per-quiz ownership lets a
+//                                       future quiz-author tool let a quiz
+//                                       creator upload media for their own
+//                                       quizzes without exposing admin
+//                                       rights to every authenticated user.
+//   * premium/**                      — premium-restricted assets
+//                                       (read-premium, write-admin).
+//
+// Helpers `isOwner`, `isAdmin`, `isPremiumOrAdmin` all live here so the
+// three buckets stay self-contained.
+// ============================================================================
+
+service firebase.storage {
+  match /b/{bucket}/o {
+
+    // ------------------------------------------------------------------------
+    // Helpers
+    // ------------------------------------------------------------------------
+
+    function isSignedIn() {
+      return request.auth != null;
+    }
+
+    function isOwner(uid) {
+      return isSignedIn() && request.auth.uid == uid;
+    }
+
+    function isAdmin() {
+      return isSignedIn() &&
+        firestore.exists(/databases/(default)/documents/users/$(request.auth.uid)) &&
+        firestore.get(/databases/(default)/documents/users/$(request.auth.uid)).data.role == 'admin';
+    }
+
+    function isPremiumOrAdmin() {
+      return isSignedIn() &&
+        firestore.exists(/databases/(default)/documents/users/$(request.auth.uid)) &&
+        (
+          firestore.get(/databases/(default)/documents/users/$(request.auth.uid)).data.role == 'premium' ||
+          firestore.get(/databases/(default)/documents/users/$(request.auth.uid)).data.role == 'admin'
+        );
+    }
+
+    function isImage() {
+      return request.resource.contentType.matches('image/.*');
+    }
+
+    function isAvatarSize() {
+      // 5 MB ceiling on per-user avatar uploads.
+      return request.resource.size < 5 * 1024 * 1024;
+    }
+
+    function isQuizAssetSize() {
+      // 25 MB ceiling on per-quiz media uploads.
+      return request.resource.size < 25 * 1024 * 1024;
+    }
+
+    // ------------------------------------------------------------------------
+    // users/{uid}/** — owner-only avatar / private assets
+    // ------------------------------------------------------------------------
+
+    match /users/{uid}/{allPaths=**} {
+      allow read: if isOwner(uid);
+      allow write: if isOwner(uid)
+        && isImage()
+        && isAvatarSize();
+    }
+
+    // ------------------------------------------------------------------------
+    // content/** — guidebook / lesson assets; read-authenticated,
+    // write-admin. Lesson cover images, guide chapter PDFs, etc.
+    // ------------------------------------------------------------------------
+
+    match /content/{allPaths=**} {
+      allow read: if isSignedIn();
+      allow write: if isAdmin();
+    }
+
+    // Per-quiz media. Lets a future quiz-author tool upload figures for
+    // a specific quiz without granting global write access.
+    match /content/quizzes/{quizId}/{allPaths=**} {
+      allow read: if isSignedIn();
+      // Admins can upload to any quiz; the quiz's author (looked up via
+      // quizzes/{quizId}.authorId in Firestore) can upload to their own
+      // quizzes.
+      allow write: if isAdmin()
+        || (isSignedIn() &&
+            firestore.exists(/databases/(default)/documents/quizzes/$(quizId)) &&
+            firestore.get(/databases/(default)/documents/quizzes/$(quizId)).data.authorId == request.auth.uid)
+        && isQuizAssetSize();
+    }
+
+    // ------------------------------------------------------------------------
+    // premium/** — premium / admin only
+    // ------------------------------------------------------------------------
+
+    match /premium/{allPaths=**} {
+      allow read: if isPremiumOrAdmin();
+      allow write: if isAdmin();
+    }
+
+    // ------------------------------------------------------------------------
+    // Default deny — anything not matched above is rejected
+    // ------------------------------------------------------------------------
+
+    match /{allPaths=**} {
+      allow read, write: if false;
+    }
+  }
+}

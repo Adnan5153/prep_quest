@@ -1,4 +1,7 @@
+import 'package:flutter_riverpod/flutter_riverpod.dart';
+
 import '../../../../core/errors/error_handler.dart';
+import '../../../../core/security/auth_precondition.dart';
 import '../../../../shared/typedefs/result.dart';
 import '../../domain/entities/recent_search_entity.dart';
 import '../../domain/entities/search_item_entity.dart';
@@ -16,17 +19,23 @@ import '../models/trending_search_model.dart';
 /// Until Firestore is wired, `preferRemote` stays `false` and `remote`
 /// stays `null`. The async signatures + `_readAll` chain are kept so a
 /// later swap is purely a constructor change.
+///
+/// Phase 51 — mutating methods (`saveRecentSearch`,
+/// `clearRecentSearches`) enforce an authenticated precondition via
+/// [AuthGuard] before delegating to the remote data source.
 class SearchRepositoryImpl implements SearchRepository {
   SearchRepositoryImpl({
     required this.local,
     this.remote,
     this.preferRemote = false,
     this.maxRecentEntries = 20,
-  });
+    required Ref ref,
+  }) : _guard = AuthGuard(ref);
 
   final SearchLocalDataSource local;
   final SearchRemoteDataSource? remote;
   final bool preferRemote;
+  final AuthGuard _guard;
 
   /// Maximum persisted recent-search entries (most-recent wins).
   final int maxRecentEntries;
@@ -77,6 +86,7 @@ class SearchRepositoryImpl implements SearchRepository {
   @override
   Future<Result<void>> saveRecentSearch(RecentSearchEntity entry) async {
     try {
+      _guard.assertAuthenticated();
       final List<RecentSearchModel> existing = local.readRecent(limit: 50);
       final String normalizedQuery = entry.query.trim();
       final List<RecentSearchModel> deduped = existing
@@ -99,6 +109,7 @@ class SearchRepositoryImpl implements SearchRepository {
   @override
   Future<Result<void>> clearRecentSearches() async {
     try {
+      _guard.assertAuthenticated();
       local.writeRecent(const <RecentSearchModel>[]);
       return Result.success(null);
     } catch (e, st) {

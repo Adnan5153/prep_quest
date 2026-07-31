@@ -14,22 +14,27 @@ import '../models/otp_request_model.dart';
 import '../models/user_model.dart';
 import 'auth_remote_datasource.dart';
 
-/// In-memory authentication data source used during development and
-/// tests. Mirrors the Firebase Auth API surface so production can
-/// swap implementations via dependency injection without touching the
+/// In-memory authentication data source used as a last-resort offline
+/// fallback when Firebase is **not** configured (typically unit tests or
+/// a brand-new dev machine with no `google-services.json`). Mirrors
+/// the Firebase Auth API surface so production can swap
+/// implementations via dependency injection without touching the
 /// application/presentation layer.
+///
+/// **Production never uses this class** — `authRemoteDataSourceProvider`
+/// always returns [FirebaseAuthRemoteDataSource] when
+/// `FirebaseConfig.isPlatformConfigured` is true. This implementation
+/// exists purely to keep the app bootable in isolated environments.
 ///
 /// Behaviour summary:
 /// * Stores "registered" users in memory; the "database" is reset on
-///   process restart. Production swaps in [FirebaseAuthRemoteDataSource].
+///   process restart.
 /// * Phone OTP codes are emitted by the repository (printed to debug
 ///   log) so QA can complete the flow without an SMS provider.
 /// * All write paths simulate a 600 ms network round-trip.
 class MockAuthRemoteDataSource implements AuthRemoteDataSource {
   MockAuthRemoteDataSource({Duration? latency})
-      : _latency = latency ?? const Duration(milliseconds: 600) {
-    _bootstrap();
-  }
+      : _latency = latency ?? const Duration(milliseconds: 600);
 
   final Duration _latency;
   final Uuid _uuid = const Uuid();
@@ -40,27 +45,6 @@ class MockAuthRemoteDataSource implements AuthRemoteDataSource {
   final Map<String, _MockAccount> _accounts = <String, _MockAccount>{};
   final Map<String, String> _otpByVerificationId = <String, String>{};
   UserModel? _currentUser;
-
-  void _bootstrap() {
-    final DateTime now = DateTime.now();
-    final UserModel demo = UserModel(
-      id: 'demo-user',
-      email: 'demo@prepquest.app',
-      displayName: 'Demo Learner',
-      emailVerified: true,
-      phoneNumber: '+8801700000000',
-      examTrackId: ExamTrack.bcs.id,
-      roleId: UserRole.free.id,
-      district: 'Dhaka',
-      photoUrl: '',
-      createdAt: now,
-      lastSignInAt: now,
-    );
-    _accounts[demo.email.toLowerCase()] = _MockAccount(
-      user: demo,
-      password: 'Password1',
-    );
-  }
 
   @override
   Stream<UserModel?> authStateChanges() async* {
@@ -148,6 +132,44 @@ class MockAuthRemoteDataSource implements AuthRemoteDataSource {
       lastSignInAt: now,
     );
     _accounts[normalized] = _MockAccount(user: user, password: password);
+    _setCurrentUser(user);
+    return _session(user);
+  }
+
+  @override
+  Future<AuthSessionModel> signInWithGoogle() async {
+    await _wait();
+    // The mock simulates a Google sign-in by registering a stable
+    // demo account keyed by uid. It **only** activates when this
+    // method is explicitly called (e.g. by offline tests). It never
+    // auto-bootstraps a session, so the production app (which uses
+    // [FirebaseAuthRemoteDataSource]) does not see this branch.
+    const String googleUid = 'google-demo-user';
+    const String googleEmail = 'demo.google@prepquest.app';
+    final String key = 'google:$googleUid';
+    final _MockAccount? existing = _accounts[key];
+    final DateTime now = DateTime.now();
+    final UserModel user = existing?.user.copyWith(
+          lastSignInAt: now,
+        ) ??
+        UserModel(
+          id: googleUid,
+          email: googleEmail,
+          displayName: 'Demo Google Learner',
+          emailVerified: true,
+          phoneNumber: '',
+          examTrackId: ExamTrack.other.id,
+          roleId: UserRole.free.id,
+          district: '',
+          photoUrl: 'https://example.com/avatar-google-demo.png',
+          createdAt: now,
+          lastSignInAt: now,
+        );
+    if (existing == null) {
+      _accounts[key] = _MockAccount(user: user, password: '');
+    } else {
+      _accounts[key] = existing.copyWith(user: user);
+    }
     _setCurrentUser(user);
     return _session(user);
   }

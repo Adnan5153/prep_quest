@@ -45,7 +45,15 @@ class UserRewardsState {
   }
 
   final int totalXP;
+
+  /// Deprecated: read `UserProfile.progression.coins` instead. This
+  /// in-memory mirror is kept for legacy UI widgets that have not yet
+  /// been migrated to `coinBalanceProvider`. The canonical coin
+  /// authority is the Firestore progression document maintained by
+  /// `CoinService` (Phase 41).
+  @Deprecated('Read UserProfile.progression.coins via coinBalanceProvider.')
   final int totalCoins;
+
   final LevelProgress level;
   final StreakState streak;
   final List<BadgeEntry> badges;

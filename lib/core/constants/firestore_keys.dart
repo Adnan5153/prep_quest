@@ -6,7 +6,7 @@
 class FirestoreKeys {
   const FirestoreKeys._();
 
-  // ----- Collections -----
+  // ----- Top-level collections -----
   static const String users = 'users';
   static const String subscriptions = 'subscriptions';
   static const String subjects = 'subjects';
@@ -23,4 +23,41 @@ class FirestoreKeys {
   static const String leaderboardEntries = 'leaderboard_entries';
   static const String adminLogs = 'admin_logs';
   static const String analyticsEvents = 'analytics_events';
+  static const String categories = 'categories';
+
+  // ----- users/{uid}/* subcollections -----
+  static const String progressionSubcollection = 'progression';
+  static const String studyStatsSubcollection = 'study_stats';
+  static const String statisticsSubcollection = 'statistics';
+  static const String streakSubcollection = 'streak';
+  static const String playgroundSubcollection = 'playground';
+  static const String quizSessionsSubcollection = 'quiz_sessions';
+  static const String quizHistorySubcollection = 'quiz_history';
+  static const String categoryProgressSubcollection = 'category_progress';
+  static const String profileSubcollection = 'profile';
+  static const String appUserSubcollection = 'app_user';
+  static const String coinLedgerSubcollection = 'coin_ledger';
+  static const String missionProgressSubcollection = 'mission_progress';
+  static const String categoryStatisticsSubcollection = 'category_statistics';
+  static const String bookmarksSubcollection = 'bookmarks';
+  static const String notesSubcollection = 'notes';
+  static const String highlightsSubcollection = 'highlights';
+  static const String aiNotesSubcollection = 'ai_notes';
+  static const String notificationsSubcollection = 'notifications';
+  static const String fcmTokensSubcollection = 'fcm_tokens';
+  static const String settingsSubcollection = 'settings';
+  static const String leaderboardEntriesSubcollection = 'leaderboard_entries';
+  static const String notificationPreferencesDoc = 'notification_preferences';
+  static const String subscriptionSubcollection = 'subscription';
+  static const String searchRecentSubcollection = 'search_recent';
+
+  // ----- Top-level content collections -----
+  static const String quizzesCollection = 'quizzes';
+  static const String lessonsCollection = 'lessons';
+  static const String contentManifestsCollection = 'content_manifests';
+  static const String searchIndexCollection = 'search_index';
+  static const String subscriptionPlansCollection = 'subscription_plans';
+
+  // ----- Shared document ids -----
+  static const String currentDocId = 'current';
 }

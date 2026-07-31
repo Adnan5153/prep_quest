@@ -1,9 +1,14 @@
+import 'dart:async';
+
 import 'package:flutter/foundation.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
+import '../../../../core/services/notification_service.dart';
 import '../../../../shared/typedefs/result.dart';
+import '../../../authentication/presentation/providers/auth_providers.dart';
 import '../../data/datasources/notification_local_datasource.dart';
 import '../../data/datasources/notification_remote_datasource.dart';
+import '../../data/models/notification_model.dart';
 import '../../data/repositories/notification_repository_impl.dart';
 import '../../domain/entities/notification_entity.dart';
 import '../../domain/repositories/notification_repository.dart';
@@ -14,35 +19,68 @@ import '../../domain/usecases/mark_as_read.dart';
 
 final notificationLocalDataSourceProvider =
     Provider<NotificationLocalDataSource>(
-  (ref) => NotificationLocalDataSource(),
+  (Ref ref) => NotificationLocalDataSource(),
 );
 
+/// Resolves the authenticated uid from [authStateProvider]. Returns
+/// an empty string for guests / unauthenticated users — the remote
+/// datasource treats empty uids as a no-op (Firestore writes
+/// skipped).
+final notificationCurrentUidProvider = Provider<String>((Ref ref) {
+  final auth = ref.watch(authStateProvider);
+  return auth.user?.id ?? '';
+});
+
+/// Firestore-backed remote source. The single-writer
+/// [NotificationService] owns the canonical schema.
 final notificationRemoteDataSourceProvider =
-    Provider<NotificationRemoteDataSource>(
-  (ref) => const NotificationRemoteDataSource(),
-);
+    Provider<NotificationRemoteDataSource>((Ref ref) {
+  return NotificationRemoteDataSource(
+    service: ref.watch(notificationServiceProvider),
+    uidProvider: () => ref.read(notificationCurrentUidProvider),
+  );
+});
 
+/// Firestore repository — remote-first, local cache for offline +
+/// initial reads. Realtime updates from
+/// [userNotificationsStreamProvider] flow into the local mirror via
+/// the `remoteStreamFactory` so widgets refresh without manual
+/// refresh.
 final notificationRepositoryProvider = Provider<NotificationRepository>(
-  (ref) => NotificationRepositoryImpl(
-    local: ref.watch(notificationLocalDataSourceProvider),
-    remote: ref.watch(notificationRemoteDataSourceProvider),
-  ),
+  (Ref ref) {
+    final NotificationRepositoryImpl impl = NotificationRepositoryImpl(
+      local: ref.watch(notificationLocalDataSourceProvider),
+      remote: ref.watch(notificationRemoteDataSourceProvider),
+      remoteStreamFactory: () =>
+          ref.watch(userNotificationsStreamProvider).maybeWhen(
+                data: (List<NotificationModel> rows) =>
+                    Stream<List<NotificationModel>>.value(rows),
+                orElse: () => Stream<List<NotificationModel>>.value(
+                  ref.read(notificationLocalDataSourceProvider).readAll(),
+                ),
+              ),
+      preferRemote: true,
+      ref: ref,
+    );
+    ref.onDispose(impl.cancelRemoteSubscription);
+    return impl;
+  },
 );
 
 final getNotificationsUseCaseProvider = Provider<GetNotifications>(
-  (ref) => GetNotifications(ref.watch(notificationRepositoryProvider)),
+  (Ref ref) => GetNotifications(ref.watch(notificationRepositoryProvider)),
 );
 
 final markAsReadUseCaseProvider = Provider<MarkAsRead>(
-  (ref) => MarkAsRead(ref.watch(notificationRepositoryProvider)),
+  (Ref ref) => MarkAsRead(ref.watch(notificationRepositoryProvider)),
 );
 
 final markAllAsReadUseCaseProvider = Provider<MarkAllAsRead>(
-  (ref) => MarkAllAsRead(ref.watch(notificationRepositoryProvider)),
+  (Ref ref) => MarkAllAsRead(ref.watch(notificationRepositoryProvider)),
 );
 
 final deleteNotificationUseCaseProvider = Provider<DeleteNotification>(
-  (ref) => DeleteNotification(ref.watch(notificationRepositoryProvider)),
+  (Ref ref) => DeleteNotification(ref.watch(notificationRepositoryProvider)),
 );
 
 @immutable
@@ -86,12 +124,30 @@ class NotificationController extends StateNotifier<NotificationViewState> {
     required this.markAsRead,
     required this.markAllAsRead,
     required this.deleteNotification,
-  }) : super(NotificationViewState.initial);
+    required Ref ref,
+  })  : _ref = ref,
+        super(NotificationViewState.initial) {
+    _remoteSubscription = _ref.listen<AsyncValue<List<NotificationModel>>>(
+      userNotificationsStreamProvider,
+      (AsyncValue<List<NotificationModel>>? previous,
+          AsyncValue<List<NotificationModel>> next) {
+        next.whenData((List<NotificationModel> rows) {
+          _ref.read(notificationLocalDataSourceProvider).writeAll(rows);
+          if (state.status == NotificationStatus.ready) {
+            load();
+          }
+        });
+      },
+    );
+  }
 
   final GetNotifications getNotifications;
   final MarkAsRead markAsRead;
   final MarkAllAsRead markAllAsRead;
   final DeleteNotification deleteNotification;
+  final Ref _ref;
+
+  ProviderSubscription<AsyncValue<List<NotificationModel>>>? _remoteSubscription;
 
   Future<void> load() async {
     state = state.copyWith(
@@ -119,6 +175,7 @@ class NotificationController extends StateNotifier<NotificationViewState> {
 
   Future<void> markRead(String id) async {
     final Result<List<NotificationEntity>> result = await markAsRead(id);
+    if (!mounted) return;
     result.fold(
       onFailure: (_) {},
       onSuccess: (items) {
@@ -129,6 +186,7 @@ class NotificationController extends StateNotifier<NotificationViewState> {
 
   Future<void> markAllRead() async {
     final Result<List<NotificationEntity>> result = await markAllAsRead();
+    if (!mounted) return;
     result.fold(
       onFailure: (_) {},
       onSuccess: (items) {
@@ -140,6 +198,7 @@ class NotificationController extends StateNotifier<NotificationViewState> {
   Future<void> remove(String id) async {
     final Result<List<NotificationEntity>> result =
         await deleteNotification(id);
+    if (!mounted) return;
     result.fold(
       onFailure: (_) {},
       onSuccess: (items) {
@@ -147,15 +206,22 @@ class NotificationController extends StateNotifier<NotificationViewState> {
       },
     );
   }
+
+  @override
+  void dispose() {
+    _remoteSubscription?.close();
+    super.dispose();
+  }
 }
 
 final notificationControllerProvider =
     StateNotifierProvider<NotificationController, NotificationViewState>(
-  (ref) => NotificationController(
+  (Ref ref) => NotificationController(
     getNotifications: ref.watch(getNotificationsUseCaseProvider),
     markAsRead: ref.watch(markAsReadUseCaseProvider),
     markAllAsRead: ref.watch(markAllAsReadUseCaseProvider),
     deleteNotification: ref.watch(deleteNotificationUseCaseProvider),
+    ref: ref,
   ),
 );
 
@@ -163,3 +229,40 @@ final notificationControllerProvider =
 final notificationUnreadCountProvider = Provider<int>(
   (ref) => ref.watch(notificationControllerProvider).unreadCount,
 );
+
+/// Registers the current device's FCM token against the authenticated
+/// user. Empty uid (guest) is a no-op.
+final registerFcmTokenProvider = Provider<Future<bool> Function({
+  required String deviceId,
+  required String token,
+  String? platform,
+  Map<String, dynamic>? metadata,
+})>((Ref ref) {
+  return ({
+    required String deviceId,
+    required String token,
+    String? platform,
+    Map<String, dynamic>? metadata,
+  }) async {
+    final String uid = ref.read(notificationCurrentUidProvider);
+    return ref.read(notificationServiceProvider).registerToken(
+          uid: uid,
+          deviceId: deviceId,
+          token: token,
+          platform: platform,
+          metadata: metadata,
+        );
+  };
+});
+
+/// Unregisters the current device's FCM token (sign-out cleanup).
+final unregisterFcmTokenProvider =
+    Provider<Future<bool> Function({required String deviceId})>((Ref ref) {
+  return ({required String deviceId}) async {
+    final String uid = ref.read(notificationCurrentUidProvider);
+    return ref.read(notificationServiceProvider).unregisterToken(
+          uid: uid,
+          deviceId: deviceId,
+        );
+  };
+});

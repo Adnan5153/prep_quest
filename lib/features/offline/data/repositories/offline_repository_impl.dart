@@ -3,7 +3,10 @@
 import 'dart:async';
 import 'dart:math' as math;
 
+import 'package:flutter_riverpod/flutter_riverpod.dart';
+
 import '../../../../core/errors/failures.dart';
+import '../../../../core/security/auth_precondition.dart';
 import '../../../../core/services/storage_service.dart';
 import '../../../../shared/typedefs/result.dart';
 import '../../domain/entities/download_task_entity.dart';
@@ -24,15 +27,18 @@ class OfflineRepositoryImpl implements OfflineRepository {
     required OfflineRemoteDataSource remote,
     required StorageService storage,
     DateTime Function()? clock,
+    Ref? ref,
   })  : _local = local,
         _remote = remote,
         _storage = storage,
-        _clock = clock ?? DateTime.now;
+        _clock = clock ?? DateTime.now,
+        _guard = ref == null ? null : AuthGuard(ref);
 
   final OfflineLocalDataSource _local;
   final OfflineRemoteDataSource _remote;
   final StorageService _storage;
   final DateTime Function() _clock;
+  final AuthGuard? _guard;
 
   static const int _defaultKbPerTick = 320;
   Timer? _ticker;
@@ -124,6 +130,7 @@ class OfflineRepositoryImpl implements OfflineRepository {
     required OfflineContentType contentType,
     required int totalBytes,
   }) async {
+    _guard?.assertAuthenticated();
     final String id = 'dl_${DateTime.now().microsecondsSinceEpoch}';
     final DownloadTaskModel task = DownloadTaskModel(
       id: id,
@@ -216,6 +223,7 @@ class OfflineRepositoryImpl implements OfflineRepository {
     required Map<String, dynamic> payload,
   }) async {
     final String id = 'sync_${DateTime.now().microsecondsSinceEpoch}';
+    _guard?.assertAuthenticated();
     final SyncTaskModel task = SyncTaskModel(
       id: id,
       sourceName: source.name,

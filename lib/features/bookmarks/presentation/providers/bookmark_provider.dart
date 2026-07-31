@@ -3,9 +3,12 @@ import 'dart:async';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../../../../core/errors/failures.dart';
+import '../../../../core/services/bookmark_service.dart';
 import '../../../../shared/typedefs/result.dart';
+import '../../../authentication/presentation/providers/auth_providers.dart';
 import '../../data/datasources/bookmark_local_datasource.dart';
 import '../../data/datasources/bookmark_remote_datasource.dart';
+import '../../data/models/bookmark_model.dart';
 import '../../data/repositories/bookmark_repository_impl.dart';
 import '../../domain/entities/bookmark_entity.dart';
 import '../../domain/enums/bookmark_filter.dart';
@@ -23,19 +26,52 @@ import 'bookmark_filter_provider.dart';
 import 'bookmark_state.dart';
 
 final bookmarkLocalDataSourceProvider = Provider<BookmarkLocalDataSource>(
-  (Ref ref) => BookmarkLocalDataSource(),
+  (Ref ref) {
+    final BookmarkLocalDataSource ds = BookmarkLocalDataSource();
+    ref.onDispose(ds.dispose);
+    return ds;
+  },
 );
 
-final bookmarkRemoteDataSourceProvider = Provider<BookmarkRemoteDataSource>(
-  (Ref ref) => const BookmarkRemoteDataSource(),
-);
+/// Resolves the authenticated uid from [authStateProvider]. Returns
+/// an empty string for guests / unauthenticated users — the remote
+/// datasource treats empty uids as a no-op (Firestore writes
+/// skipped).
+final bookmarkCurrentUidProvider = Provider<String>((Ref ref) {
+  final auth = ref.watch(authStateProvider);
+  return auth.user?.id ?? '';
+});
 
-final bookmarkRepositoryProvider = Provider<BookmarkRepository>(
-  (Ref ref) => BookmarkRepositoryImpl(
+/// Firestore-backed remote source. The single-writer
+/// [BookmarkService] owns the canonical schema.
+final bookmarkRemoteDataSourceProvider =
+    Provider<BookmarkRemoteDataSource>((Ref ref) {
+  return BookmarkRemoteDataSource(
+    service: ref.watch(bookmarkServiceProvider),
+    uidProvider: () => ref.read(bookmarkCurrentUidProvider),
+  );
+});
+
+/// Firestore repository — remote-first, local cache for offline +
+/// filter/sort/search. Realtime updates from
+/// [userBookmarksStreamProvider] flow into the local mirror via the
+/// `remoteStreamFactory` so widgets refresh without manual refresh.
+final bookmarkRepositoryProvider = Provider<BookmarkRepository>((Ref ref) {
+  final BookmarkRepositoryImpl impl = BookmarkRepositoryImpl(
     local: ref.watch(bookmarkLocalDataSourceProvider),
     remote: ref.watch(bookmarkRemoteDataSourceProvider),
-  ),
-);
+    remoteStreamFactory: () => ref.watch(userBookmarksStreamProvider).maybeWhen(
+          data: (List<BookmarkModel> rows) => Stream<List<BookmarkModel>>.value(rows),
+          orElse: () => Stream<List<BookmarkModel>>.value(
+            ref.read(bookmarkLocalDataSourceProvider).readAll(),
+          ),
+        ),
+    preferRemote: true,
+    ref: ref,
+  );
+  ref.onDispose(impl.cancelRemoteSubscription);
+  return impl;
+});
 
 final addBookmarkUseCaseProvider = Provider<AddBookmark>(
   (Ref ref) => AddBookmark(ref.watch(bookmarkRepositoryProvider)),
@@ -80,7 +116,21 @@ class BookmarkController extends StateNotifier<BookmarksViewState> {
         _clearBookmarks = clearBookmarks,
         _syncBookmarks = syncBookmarks,
         _ref = ref,
-        super(BookmarksViewState.initial);
+        super(BookmarksViewState.initial) {
+    _remoteSubscription = _ref.listen<AsyncValue<List<BookmarkModel>>>(
+      userBookmarksStreamProvider,
+      (AsyncValue<List<BookmarkModel>>? previous,
+          AsyncValue<List<BookmarkModel>> next) {
+        next.whenData((List<BookmarkModel> rows) {
+          _ref.read(bookmarkLocalDataSourceProvider).writeAll(rows);
+          if (state.status == BookmarksStatus.ready) {
+            // Remote push arrived — re-hydrate so the screen re-renders.
+            hydrate(offset: 0);
+          }
+        });
+      },
+    );
+  }
 
   final GetBookmarks _getBookmarks;
   final RemoveBookmark _removeBookmark;
@@ -88,6 +138,8 @@ class BookmarkController extends StateNotifier<BookmarksViewState> {
   final ClearBookmarks _clearBookmarks;
   final SyncBookmarks _syncBookmarks;
   final Ref _ref;
+
+  ProviderSubscription<AsyncValue<List<BookmarkModel>>>? _remoteSubscription;
 
   /// Fires transient feedback whenever a toggle completes.
   final StreamController<BookmarkFeedback> _feedback =
@@ -98,9 +150,7 @@ class BookmarkController extends StateNotifier<BookmarksViewState> {
   Future<void> hydrate({int offset = 0, int limit = 20}) async {
     final BookmarkFilter filter = _ref.read(bookmarkFilterProvider);
     final BookmarkSort sort = _ref.read(bookmarkSortProvider);
-    final String query = _ref.read(bookmarkFilterProvider).name.isEmpty
-        ? state.query
-        : state.query;
+    final String query = state.query;
     if (offset == 0) {
       state = state.copyWith(
         status: BookmarksStatus.loading,
@@ -198,12 +248,7 @@ class BookmarkController extends StateNotifier<BookmarksViewState> {
           message: added ? 'Bookmark saved' : 'Bookmark removed',
           isAdded: added,
         ));
-        // Refresh the underlying list so the BookmarksScreen (if mounted)
-        // reflects the change. If the controller is in offline mode and
-        // adds succeeded, keep offlineMode as-is.
-        if (added && state.status == BookmarksStatus.ready) {
-          hydrate(offset: 0);
-        } else if (!added && state.status == BookmarksStatus.ready) {
+        if (state.status == BookmarksStatus.ready) {
           hydrate(offset: 0);
         }
         return added;
@@ -267,6 +312,7 @@ class BookmarkController extends StateNotifier<BookmarksViewState> {
 
   @override
   void dispose() {
+    _remoteSubscription?.close();
     _feedback.close();
     super.dispose();
   }

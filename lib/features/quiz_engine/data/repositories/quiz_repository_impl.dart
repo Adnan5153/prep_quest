@@ -1,4 +1,7 @@
+import 'package:flutter_riverpod/flutter_riverpod.dart';
+
 import '../../../../core/errors/error_handler.dart';
+import '../../../../core/security/auth_precondition.dart';
 import '../../../../shared/typedefs/result.dart';
 import '../../domain/entities/quiz_entity.dart';
 import '../../domain/entities/quiz_report_entity.dart';
@@ -9,9 +12,12 @@ import '../datasources/quiz_remote_datasource.dart';
 import '../models/quiz_session_model.dart';
 
 class QuizRepositoryImpl implements QuizRepository {
-  const QuizRepositoryImpl(this._remote);
+  QuizRepositoryImpl(QuizRemoteDataSource remote, {Ref? ref})
+      : _remote = remote,
+        _guard = ref == null ? null : AuthGuard(ref);
 
   final QuizRemoteDataSource _remote;
+  final AuthGuard? _guard;
 
   @override
   Future<Result<List<QuizEntity>>> getAllQuizzes() async {
@@ -52,6 +58,7 @@ class QuizRepositoryImpl implements QuizRepository {
     QuizSessionEntity session,
   ) async {
     try {
+      _guard?.assertAuthenticated();
       final model = await _remote.submitQuizSession(_toSessionModel(session));
       return Result.success(model.toEntity());
     } catch (error, stackTrace) {
@@ -72,6 +79,7 @@ class QuizRepositoryImpl implements QuizRepository {
   @override
   Future<Result<bool>> toggleQuestionBookmark(String questionId) async {
     try {
+      _guard?.assertAuthenticated();
       final added = await _remote.toggleBookmark(questionId);
       return Result.success(added);
     } catch (error, stackTrace) {
@@ -87,6 +95,7 @@ class QuizRepositoryImpl implements QuizRepository {
     required String note,
   }) async {
     try {
+      _guard?.assertAuthenticated();
       final model = await _remote.submitReport(
         questionId: questionId,
         quizId: quizId,

@@ -1,6 +1,8 @@
 import 'package:flutter/foundation.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
+import '../../../../core/config/firebase_config.dart';
+import '../../data/datasources/firebase_lesson_remote_datasource.dart';
 import '../../data/datasources/lesson_remote_datasource.dart';
 import '../../data/datasources/mock_lesson_remote_datasource.dart';
 import '../../data/repositories/lesson_repository_impl.dart';
@@ -10,7 +12,16 @@ import '../../domain/usecases/get_all_lessons.dart';
 import '../../domain/usecases/get_lesson_by_id.dart';
 import '../../domain/usecases/get_lessons_for_node.dart';
 
+/// Lessons remote data source.
+///
+/// Production reads from `lessons/{lessonId}` via
+/// [FirebaseLessonRemoteDataSource] (sections/examples/summary are
+/// nested fields on the document). The mock remains as the offline
+/// fallback for tests / unconfigured dev.
 final lessonRemoteDataSourceProvider = Provider<LessonRemoteDataSource>((ref) {
+  if (FirebaseConfig.isPlatformConfigured) {
+    return FirebaseLessonRemoteDataSource();
+  }
   return MockLessonRemoteDataSource();
 });
 

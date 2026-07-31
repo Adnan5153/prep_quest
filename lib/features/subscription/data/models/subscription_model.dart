@@ -1,10 +1,7 @@
-import 'package:flutter/material.dart';
-
 import '../../domain/entities/subscription_entity.dart';
 
 /// DTO for [SubscriptionEntity]. Owns the (de)serialisation contract
-/// so the entity stays framework-independent apart from the
-/// [IconData] `codePoint`/`fontFamily` mapping.
+/// so the entity stays framework-independent.
 class SubscriptionModel {
   const SubscriptionModel({
     required this.tier,
@@ -66,9 +63,7 @@ class SubscriptionModel {
     };
   }
 
-  SubscriptionEntity toEntity(
-    List<SubscriptionFeatureEntity> catalog,
-  ) {
+  SubscriptionEntity toEntity(List<SubscriptionFeatureEntity> catalog) {
     return SubscriptionEntity(
       tier: tier,
       status: status,
@@ -164,10 +159,10 @@ class SubscriptionPlanModel {
       featureIds: ((map['feature_ids'] as List?) ?? <dynamic>[])
           .map((dynamic e) => e as String)
           .toList(growable: false),
-      paymentProviderCodes: ((map['payment_provider_codes'] as List?) ??
-              <dynamic>[])
-          .map((dynamic e) => e as String)
-          .toList(growable: false),
+      paymentProviderCodes:
+          ((map['payment_provider_codes'] as List?) ?? <dynamic>[])
+              .map((dynamic e) => e as String)
+              .toList(growable: false),
     );
   }
 
@@ -199,23 +194,22 @@ class SubscriptionPlanModel {
     };
   }
 
-  SubscriptionPlanEntity toEntity(
-    List<SubscriptionFeatureEntity> catalog,
-  ) {
-    final List<SubscriptionFeatureEntity> resolved =
-        featureIds
-            .map((String id) => catalog.firstWhere(
-                  (SubscriptionFeatureEntity f) => f.id == id,
-                  orElse: () => const SubscriptionFeatureEntity(
-                    id: 'unknown',
-                    title: 'Unknown feature',
-                    description: '',
-                    iconCodePoint: 0xe88e, // help_outline
-                    freeAvailable: false,
-                    premiumAvailable: false,
-                  ),
-                ))
-            .toList(growable: false);
+  SubscriptionPlanEntity toEntity(List<SubscriptionFeatureEntity> catalog) {
+    final List<SubscriptionFeatureEntity> resolved = featureIds
+        .map(
+          (String id) => catalog.firstWhere(
+            (SubscriptionFeatureEntity f) => f.id == id,
+            orElse: () => const SubscriptionFeatureEntity(
+              id: 'unknown',
+              title: 'Unknown feature',
+              description: '',
+              icon: SubscriptionFeatureIcon.hints,
+              freeAvailable: false,
+              premiumAvailable: false,
+            ),
+          ),
+        )
+        .toList(growable: false);
     return SubscriptionPlanEntity(
       id: id,
       tier: tier,
@@ -313,6 +307,3 @@ class PurchaseModel {
     );
   }
 }
-
-/// Reusable helper for code-point based icons.
-int iconCodePointFor(IconData icon) => icon.codePoint;

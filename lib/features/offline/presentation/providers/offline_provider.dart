@@ -43,6 +43,7 @@ final offlineRepositoryProvider = Provider<OfflineRepository>(
       local: ref.watch(offlineLocalDataSourceProvider),
       remote: ref.watch(offlineRemoteDataSourceProvider),
       storage: ref.watch(_storageServiceProvider),
+      ref: ref,
     );
     ref.onDispose(impl.dispose);
     return impl;

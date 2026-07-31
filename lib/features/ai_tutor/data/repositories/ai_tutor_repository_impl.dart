@@ -1,4 +1,7 @@
+import 'package:flutter_riverpod/flutter_riverpod.dart';
+
 import '../../../../core/errors/error_handler.dart';
+import '../../../../core/security/auth_precondition.dart';
 import '../../../../shared/typedefs/result.dart';
 import '../../domain/entities/ai_response_entity.dart';
 import '../../domain/entities/conversation.dart';
@@ -20,8 +23,14 @@ import '../models/study_plan_model.dart';
 /// All exceptions are mapped through [ErrorHandler.map] so callers see
 /// a uniform [Failure] vocabulary. The default factory wires the
 /// bundled in-memory mock so the app boots with seeded content.
+///
+/// Phase 51 — every mutating method enforces an authenticated
+/// precondition via [AuthGuard] before delegating to the remote data
+/// source.
 class AiTutorRepositoryImpl implements AiTutorRepository {
-  const AiTutorRepositoryImpl({required this._remote});
+  AiTutorRepositoryImpl({required AiTutorRemoteDataSource remote, Ref? ref})
+      : _remote = remote,
+        _guard = ref == null ? null : AuthGuard(ref);
 
   /// Convenience factory that wires the bundled mock data source.
   factory AiTutorRepositoryImpl.withDefaults() {
@@ -29,6 +38,7 @@ class AiTutorRepositoryImpl implements AiTutorRepository {
   }
 
   final AiTutorRemoteDataSource _remote;
+  final AuthGuard? _guard;
 
   // ---------------------------------------------------------------------------
   // Generation
@@ -193,6 +203,7 @@ class AiTutorRepositoryImpl implements AiTutorRepository {
   @override
   Future<Result<Conversation>> saveConversation(Conversation conversation) async {
     try {
+      _guard?.assertAuthenticated();
       final ConversationModel model = await _remote.persistConversation(
         ConversationModel(
           id: conversation.id,
@@ -241,6 +252,7 @@ class AiTutorRepositoryImpl implements AiTutorRepository {
   @override
   Future<Result<PromptEntry>> savePromptEntry(PromptEntry entry) async {
     try {
+      _guard?.assertAuthenticated();
       final PromptEntryModel stored = await _remote.persistPromptEntry(
         PromptEntryModel(
           id: entry.id,
@@ -291,6 +303,7 @@ class AiTutorRepositoryImpl implements AiTutorRepository {
   @override
   Future<Result<bool>> togglePromptFavorite(String promptId) async {
     try {
+      _guard?.assertAuthenticated();
       final bool result = await _remote.togglePromptFavorite(promptId);
       return Result.success(result);
     } catch (e, st) {
@@ -301,6 +314,7 @@ class AiTutorRepositoryImpl implements AiTutorRepository {
   @override
   Future<Result<bool>> deleteConversation(String conversationId) async {
     try {
+      _guard?.assertAuthenticated();
       final bool result = await _remote.deleteConversation(conversationId);
       return Result.success(result);
     } catch (e, st) {

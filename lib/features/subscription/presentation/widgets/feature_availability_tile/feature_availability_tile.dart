@@ -1,8 +1,7 @@
-// ignore_for_file: non_const_argument_for_const_parameter
-
 import 'package:flutter/material.dart';
 
 import '../../../../../core/constants/app_colors.dart';
+import '../../../../../core/constants/app_icons.dart';
 import '../../../../../core/constants/app_radius.dart';
 import '../../../../../core/constants/app_sizes.dart';
 import '../../../../../core/constants/app_spacing.dart';
@@ -42,7 +41,7 @@ class FeatureAvailabilityTile extends StatelessWidget {
             ),
             alignment: Alignment.center,
             child: Icon(
-              _iconFromCodePoint(feature.iconCodePoint),
+              AppIcons.subscriptionFeatureIcons[feature.icon]!,
               color: tint,
               size: AppSizes.iconMd,
             ),
@@ -62,13 +61,13 @@ class FeatureAvailabilityTile extends StatelessWidget {
                         : theme.colorScheme.onSurface.withValues(alpha: 0.5),
                   ),
                 ),
-                if (showDescription && feature.description.isNotEmpty) ...<Widget>[
+                if (showDescription &&
+                    feature.description.isNotEmpty) ...<Widget>[
                   const SizedBox(height: 2),
                   Text(
                     feature.description,
                     style: theme.textTheme.bodySmall?.copyWith(
-                      color:
-                          theme.colorScheme.onSurface.withValues(alpha: 0.6),
+                      color: theme.colorScheme.onSurface.withValues(alpha: 0.6),
                     ),
                   ),
                 ],
@@ -90,6 +89,3 @@ class FeatureAvailabilityTile extends StatelessWidget {
     return feature.premiumAvailable;
   }
 }
-
-IconData _iconFromCodePoint(int codePoint) =>
-    IconData(codePoint, fontFamily: 'MaterialIcons');

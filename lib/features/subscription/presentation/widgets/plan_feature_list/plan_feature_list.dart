@@ -1,8 +1,7 @@
-// ignore_for_file: non_const_argument_for_const_parameter
-
 import 'package:flutter/material.dart';
 
 import '../../../../../core/constants/app_colors.dart';
+import '../../../../../core/constants/app_icons.dart';
 import '../../../../../core/constants/app_sizes.dart';
 import '../../../../../core/constants/app_spacing.dart';
 import '../../../domain/entities/subscription_entity.dart';
@@ -49,7 +48,7 @@ class PlanFeatureList extends StatelessWidget {
               crossAxisAlignment: CrossAxisAlignment.start,
               children: <Widget>[
                 Icon(
-                  _iconFromCodePoint(feature.iconCodePoint),
+                  AppIcons.subscriptionFeatureIcons[feature.icon]!,
                   size: dense ? AppSizes.iconSm : AppSizes.iconMd,
                   color: tint,
                 ),
@@ -70,8 +69,9 @@ class PlanFeatureList extends StatelessWidget {
                         Text(
                           feature.description,
                           style: theme.textTheme.bodySmall?.copyWith(
-                            color: theme.colorScheme.onSurface
-                                .withValues(alpha: 0.65),
+                            color: theme.colorScheme.onSurface.withValues(
+                              alpha: 0.65,
+                            ),
                           ),
                         ),
                       ],
@@ -85,6 +85,3 @@ class PlanFeatureList extends StatelessWidget {
     );
   }
 }
-
-IconData _iconFromCodePoint(int codePoint) =>
-    IconData(codePoint, fontFamily: 'MaterialIcons');

@@ -3,7 +3,9 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 
 import '../../../../core/constants/app_spacing.dart';
+import '../../../../core/services/user_progress_service.dart';
 import '../../../../core/widgets/primary_button.dart';
+import '../../../profile/presentation/providers/profile_providers.dart';
 import '../../../../router.dart';
 import '../../../gamification/domain/entities/reward_event.dart';
 import '../../../gamification/domain/enums/reward_enums.dart';
@@ -53,13 +55,20 @@ class _QuizResultsScreenState extends ConsumerState<QuizResultsScreen> {
       );
       final QuizPerformanceEntity? performance = resultsState.performance;
       if (performance == null) return;
+      await ref.read(userProgressServiceProvider).applyQuizCompletion(
+            session: session,
+            result: performance.result,
+            categoryId: null,
+          );
+      if (!mounted) return;
       final QuizCompletedData data = QuizCompletedData(
         correctAnswers: performance.result.correctCount,
         totalQuestions: performance.result.questionResults.length,
         elapsedSeconds: performance.result.timeSpentSeconds,
         difficultyId: performance.result.difficulty.name,
         isPerfect: performance.result.isPerfect,
-        streakDays: 0,
+        streakDays:
+            ref.read(profileControllerProvider).profile?.progression.streakDays ?? 0,
       );
       await ref
           .read(rewardsControllerProvider.notifier)

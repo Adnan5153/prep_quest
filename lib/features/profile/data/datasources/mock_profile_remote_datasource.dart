@@ -1,5 +1,6 @@
 import 'dart:async';
 
+import '../../../../core/services/level_curve.dart';
 import '../../../../shared/enums/exam_track.dart';
 import '../../domain/entities/user_profile.dart';
 import '../models/user_profile_model.dart';
@@ -261,11 +262,11 @@ class MockProfileRemoteDataSource implements ProfileRemoteDataSource {
       district: '',
       bio: '',
       photoUrl: '',
-      progression: const ProgressionModel(
+      progression: ProgressionModel(
         totalXp: 0,
         level: 1,
         xpInLevel: 0,
-        xpForNextLevel: 100,
+        xpForNextLevel: LevelCurve.defaultCurve.xpRequiredForLevel(1),
         coins: 0,
         energy: 5,
         maxEnergy: 5,

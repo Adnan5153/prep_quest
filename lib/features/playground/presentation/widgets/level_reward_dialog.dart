@@ -6,6 +6,7 @@ import '../../../../core/constants/app_colors.dart';
 import '../../../../core/constants/app_spacing.dart';
 import '../../../../core/widgets/responsive_builder.dart';
 import '../../../../core/widgets/widget_constants.dart';
+import '../../../gamification/presentation/widgets/confetti_animation.dart';
 import '../constants/playground_constants.dart';
 import '../constants/playground_sizes.dart';
 import '../constants/playground_strings.dart';
@@ -25,6 +26,7 @@ class LevelRewardDialogVisual {
     this.unlockedTitles = const <String>[],
     this.rarity = PlaygroundRarity.legendary,
     this.animate = true,
+    this.showConfetti = true,
   });
 
   final int levelNumber;
@@ -35,6 +37,11 @@ class LevelRewardDialogVisual {
   final List<String> unlockedTitles;
   final PlaygroundRarity rarity;
   final bool animate;
+
+  /// When `true`, an ambient [ConfettiAnimation] rain overlays the
+  /// dialog for the entrance phase. Falls back to the in-dialog
+  /// `_CelebrationField` painter when `false`.
+  final bool showConfetti;
 
   LevelRewardDialogNextLevel get nextLevelStatus => nextLevelNumber == null
       ? LevelRewardDialogNextLevel.endOfPath
@@ -307,6 +314,15 @@ class _LevelRewardDialogSurface extends StatelessWidget {
               clipBehavior: Clip.none,
               alignment: Alignment.topCenter,
               children: <Widget>[
+                if (visual.showConfetti)
+                  Positioned.fill(
+                    child: IgnorePointer(
+                      child: ConfettiAnimation(
+                        particleCount: 28,
+                        duration: const Duration(milliseconds: 1800),
+                      ),
+                    ),
+                  ),
                 Positioned.fill(
                   child: IgnorePointer(
                     child: _CelebrationField(

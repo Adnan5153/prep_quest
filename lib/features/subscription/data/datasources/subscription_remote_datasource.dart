@@ -25,103 +25,104 @@ abstract class SubscriptionRemoteDatasource {
 /// plan feature lists from plan `feature_ids`.
 final List<SubscriptionFeatureEntity> _featureCatalog =
     <SubscriptionFeatureEntity>[
-  const SubscriptionFeatureEntity(
-    id: 'unlimited_ai_explanations',
-    title: 'Unlimited AI Explanations',
-    description: 'Ask anything, get an unlimited number of deep explanations.',
-    iconCodePoint: 0xe0b7, // Icons.auto_awesome
-    freeAvailable: false,
-    premiumAvailable: true,
-  ),
-  const SubscriptionFeatureEntity(
-    id: 'unlimited_ai_hints',
-    title: 'Unlimited AI Hints',
-    description: 'Get unstuck without losing your streak.',
-    iconCodePoint: 0xe1db, // Icons.lightbulb_outline
-    freeAvailable: false,
-    premiumAvailable: true,
-  ),
-  const SubscriptionFeatureEntity(
-    id: 'unlimited_ai_flashcards',
-    title: 'Unlimited AI Flashcards',
-    description: 'Generate flashcards for any topic on demand.',
-    iconCodePoint: 0xe28d, // Icons.style_outlined
-    freeAvailable: false,
-    premiumAvailable: true,
-  ),
-  const SubscriptionFeatureEntity(
-    id: 'unlimited_ai_study_plans',
-    title: 'Unlimited AI Study Plans',
-    description: 'Personalised 4-week study plans, refreshed weekly.',
-    iconCodePoint: 0xe896, // Icons.event_note_outlined
-    freeAvailable: false,
-    premiumAvailable: true,
-  ),
-  const SubscriptionFeatureEntity(
-    id: 'premium_mock_tests',
-    title: 'Premium Mock Tests',
-    description: 'Full-length BCS model tests with detailed solutions.',
-    iconCodePoint: 0xe3c8, // Icons.assignment_rounded
-    freeAvailable: false,
-    premiumAvailable: true,
-  ),
-  const SubscriptionFeatureEntity(
-    id: 'advanced_analytics',
-    title: 'Advanced Analytics',
-    description: 'Track streaks, accuracy, weak topics and study time.',
-    iconCodePoint: 0xe6e1, // Icons.bar_chart_rounded
-    freeAvailable: false,
-    premiumAvailable: true,
-  ),
-  const SubscriptionFeatureEntity(
-    id: 'weakness_reports',
-    title: 'Detailed Weakness Reports',
-    description: 'Per-subject weakness breakdowns with prescriptions.',
-    iconCodePoint: 0xe1bd, // Icons.assessment_outlined
-    freeAvailable: false,
-    premiumAvailable: true,
-  ),
-  const SubscriptionFeatureEntity(
-    id: 'unlimited_bookmarks',
-    title: 'Unlimited Bookmarks',
-    description: 'Save every question, lesson and AI response.',
-    iconCodePoint: 0xe0e5, // Icons.bookmark_outline
-    freeAvailable: false,
-    premiumAvailable: true,
-  ),
-  const SubscriptionFeatureEntity(
-    id: 'offline_downloads',
-    title: 'Offline Downloads',
-    description: 'Read lessons and take quizzes without internet.',
-    iconCodePoint: 0xe2c4, // Icons.cloud_download_outlined
-    freeAvailable: false,
-    premiumAvailable: true,
-  ),
-  const SubscriptionFeatureEntity(
-    id: 'priority_content',
-    title: 'Priority Content Access',
-    description: 'New lessons and mock tests drop 48h early for Premium.',
-    iconCodePoint: 0xe7f4, // Icons.bolt_outlined
-    freeAvailable: false,
-    premiumAvailable: true,
-  ),
-  const SubscriptionFeatureEntity(
-    id: 'exclusive_study_materials',
-    title: 'Exclusive Study Materials',
-    description: 'Hand-curated guides, cheat-sheets and model answers.',
-    iconCodePoint: 0xe865, // Icons.menu_book_rounded
-    freeAvailable: false,
-    premiumAvailable: true,
-  ),
-  const SubscriptionFeatureEntity(
-    id: 'ad_free',
-    title: 'Ad-Free Experience',
-    description: 'No interruptions — ever.',
-    iconCodePoint: 0xe57d, // Icons.block
-    freeAvailable: false,
-    premiumAvailable: true,
-  ),
-];
+      const SubscriptionFeatureEntity(
+        id: 'unlimited_ai_explanations',
+        title: 'Unlimited AI Explanations',
+        description:
+            'Ask anything, get an unlimited number of deep explanations.',
+        icon: SubscriptionFeatureIcon.unlimitedAi,
+        freeAvailable: false,
+        premiumAvailable: true,
+      ),
+      const SubscriptionFeatureEntity(
+        id: 'unlimited_ai_hints',
+        title: 'Unlimited AI Hints',
+        description: 'Get unstuck without losing your streak.',
+        icon: SubscriptionFeatureIcon.hints,
+        freeAvailable: false,
+        premiumAvailable: true,
+      ),
+      const SubscriptionFeatureEntity(
+        id: 'unlimited_ai_flashcards',
+        title: 'Unlimited AI Flashcards',
+        description: 'Generate flashcards for any topic on demand.',
+        icon: SubscriptionFeatureIcon.flashcards,
+        freeAvailable: false,
+        premiumAvailable: true,
+      ),
+      const SubscriptionFeatureEntity(
+        id: 'unlimited_ai_study_plans',
+        title: 'Unlimited AI Study Plans',
+        description: 'Personalised 4-week study plans, refreshed weekly.',
+        icon: SubscriptionFeatureIcon.studyPlans,
+        freeAvailable: false,
+        premiumAvailable: true,
+      ),
+      const SubscriptionFeatureEntity(
+        id: 'premium_mock_tests',
+        title: 'Premium Mock Tests',
+        description: 'Full-length BCS model tests with detailed solutions.',
+        icon: SubscriptionFeatureIcon.mockTests,
+        freeAvailable: false,
+        premiumAvailable: true,
+      ),
+      const SubscriptionFeatureEntity(
+        id: 'advanced_analytics',
+        title: 'Advanced Analytics',
+        description: 'Track streaks, accuracy, weak topics and study time.',
+        icon: SubscriptionFeatureIcon.advancedAnalytics,
+        freeAvailable: false,
+        premiumAvailable: true,
+      ),
+      const SubscriptionFeatureEntity(
+        id: 'weakness_reports',
+        title: 'Detailed Weakness Reports',
+        description: 'Per-subject weakness breakdowns with prescriptions.',
+        icon: SubscriptionFeatureIcon.weaknessReports,
+        freeAvailable: false,
+        premiumAvailable: true,
+      ),
+      const SubscriptionFeatureEntity(
+        id: 'unlimited_bookmarks',
+        title: 'Unlimited Bookmarks',
+        description: 'Save every question, lesson and AI response.',
+        icon: SubscriptionFeatureIcon.unlimitedBookmarks,
+        freeAvailable: false,
+        premiumAvailable: true,
+      ),
+      const SubscriptionFeatureEntity(
+        id: 'offline_downloads',
+        title: 'Offline Downloads',
+        description: 'Read lessons and take quizzes without internet.',
+        icon: SubscriptionFeatureIcon.offlineDownloads,
+        freeAvailable: false,
+        premiumAvailable: true,
+      ),
+      const SubscriptionFeatureEntity(
+        id: 'priority_content',
+        title: 'Priority Content Access',
+        description: 'New lessons and mock tests drop 48h early for Premium.',
+        icon: SubscriptionFeatureIcon.priorityContent,
+        freeAvailable: false,
+        premiumAvailable: true,
+      ),
+      const SubscriptionFeatureEntity(
+        id: 'exclusive_study_materials',
+        title: 'Exclusive Study Materials',
+        description: 'Hand-curated guides, cheat-sheets and model answers.',
+        icon: SubscriptionFeatureIcon.exclusiveStudyMaterials,
+        freeAvailable: false,
+        premiumAvailable: true,
+      ),
+      const SubscriptionFeatureEntity(
+        id: 'ad_free',
+        title: 'Ad-Free Experience',
+        description: 'No interruptions — ever.',
+        icon: SubscriptionFeatureIcon.adFree,
+        freeAvailable: false,
+        premiumAvailable: true,
+      ),
+    ];
 
 List<SubscriptionFeatureEntity> subscriptionFeatureCatalog() =>
     List<SubscriptionFeatureEntity>.unmodifiable(_featureCatalog);
@@ -131,8 +132,9 @@ List<SubscriptionFeatureEntity> subscriptionFeatureCatalog() =>
 class MockSubscriptionRemoteDatasource implements SubscriptionRemoteDatasource {
   MockSubscriptionRemoteDatasource();
 
-  static const MethodChannel _channel =
-      MethodChannel('prep_quest/subscription');
+  static const MethodChannel _channel = MethodChannel(
+    'prep_quest/subscription',
+  );
 
   final List<SubscriptionPlanModel> _plans = <SubscriptionPlanModel>[
     SubscriptionPlanModel.fromMap(<String, dynamic>{
@@ -257,14 +259,14 @@ class MockSubscriptionRemoteDatasource implements SubscriptionRemoteDatasource {
   @override
   Future<SubscriptionModel> getCurrentSubscription() async {
     try {
-      final Map<Object?, Object?>? raw =
-          await _channel.invokeMapMethod<Object?, Object?>(
-        'getCurrentSubscription',
-      );
+      final Map<Object?, Object?>? raw = await _channel
+          .invokeMapMethod<Object?, Object?>('getCurrentSubscription');
       if (raw != null) {
         return SubscriptionModel.fromMap(
-          raw.map((Object? k, Object? v) =>
-              MapEntry<String, dynamic>(k.toString(), v)),
+          raw.map(
+            (Object? k, Object? v) =>
+                MapEntry<String, dynamic>(k.toString(), v),
+          ),
         );
       }
     } on MissingPluginException {

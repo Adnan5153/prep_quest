@@ -95,11 +95,11 @@ class _LevelCompletedScreenState extends ConsumerState<LevelCompletedScreen> {
     final int xpEarned = state.lastOutcome?.grants
             .whereType<XpReward>()
             .fold<int>(0, (int s, XpReward r) => s + r.amount) ??
-        25;
+        0;
     final int coinsEarned = state.lastOutcome?.grants
             .whereType<CoinReward>()
             .fold<int>(0, (int s, CoinReward r) => s + r.amount) ??
-        10;
+        0;
     final String? badgeEarned = state.lastOutcome?.grants
         .whereType<BadgeReward>()
         .map((BadgeReward r) => r.title)

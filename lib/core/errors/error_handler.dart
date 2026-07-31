@@ -1,6 +1,7 @@
 import 'dart:async';
 
 import '../exceptions/app_exception.dart';
+import '../security/role_guard.dart';
 import 'failures.dart';
 
 /// Centralised translation between exception types and user-facing
@@ -17,6 +18,9 @@ class ErrorHandler {
         code: error.code,
         cause: error.cause,
       );
+    }
+    if (error is AuthorizationException) {
+      return AuthorizationFailure(error.message, cause: error.cause);
     }
     if (error is InvalidInputException) {
       return ValidationFailure(error.message, cause: error.cause);

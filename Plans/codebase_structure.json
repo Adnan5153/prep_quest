@@ -767,6 +767,104 @@
         "presentation/widgets": "result_analysis (accuracy_card, time_analysis_card), result_components (motivational_banner, statistics_grid), result_footer (result_footer), result_rank (rank_progress_card), result_rewards (coin_reward_card, xp_reward_card), result_score (score_hero_card, star_reward_card), result_topics (topic_breakdown_tile, weak_topics_card)"
       }
     },
+    "quiz_api": {
+      "layers": [
+        "data",
+        "domain",
+        "presentation"
+      ],
+      "path": "lib/features/quiz_api",
+      "purpose": "Quiz Hub REST adapter. Bridges the public Quiz Hub backend (docs/apidoc/api) with the Quiz Engine. Phase 38 contract: QuizApiQuizEngineAdapter.submitQuizSession writes result.rewardXp equal to the sum of q.mark for every correct answer, so the UserProgressService funnel credits XP correctly through the transactional progression write.",
+      "status": "fully implemented (Phase 35 + Phase 38 XP fix)",
+      "subfolders": {
+        "data/datasources": [
+          "http_quiz_api_remote_datasource.dart",
+          "mock_quiz_api_remote_datasource.dart",
+          "quiz_api_quiz_engine_adapter.dart",
+          "quiz_api_remote_datasource.dart"
+        ],
+        "data/cache": [
+          "quiz_api_cache.dart"
+        ],
+        "data/models": [
+          "quiz_category_model.dart",
+          "quiz_pagination_model.dart",
+          "quiz_question_model.dart"
+        ],
+        "data/repositories": [
+          "cached_quiz_api_repository.dart",
+          "fallback_quiz_api_repository.dart",
+          "quiz_api_repository_impl.dart"
+        ],
+        "domain/entities": [
+          "quiz_category_entity.dart",
+          "quiz_query.dart",
+          "quiz_question_entity.dart"
+        ],
+        "domain/repositories": [
+          "quiz_api_repository.dart"
+        ],
+        "presentation/providers": [
+          "quiz_api_providers.dart"
+        ]
+      }
+    },
+    "user_progress_service": {
+      "path": "lib/core/services/user_progress_service.dart",
+      "purpose": "Phase 34 + Phase 38 + Phase 39 single funnel that fires every side-effect when a quiz session is submitted: profile XP/coins/level mutation, streak update, playground node completion, plus six Firestore writes (progression transaction, study stats, statistics mirror, streak, category progress, playground snapshot, quiz session + quiz history). XP comes from QuizResultEntity.rewardXp. After computing _nextProfile(updated), _pushProgressionIntoPlayground(playground, updated) replaces playgroundProgressProvider with current.copyWith(progression) so the Playground UI totalXp/coins/level/streak always mirror UserProfile.progression."
+    },
+    "playground_xp_engine": {
+      "phase": "Phase 39",
+      "purpose": "Phase 39 dynamic XP wiring — single source of truth for XP is UserProfile.progression; every UI XP indicator reads from a Riverpod provider.",
+      "components": {
+        "LevelScreen": "Converted to ConsumerWidget; reads xpReward/coinReward via _levelRewardsProvider derived from categoryByIdProvider(nodeId).",
+        "ChallengeScreen": "Converted to ConsumerWidget; reads xpReward/coinReward via _challengeRewardsProvider derived from categoryByIdProvider(nodeId).",
+        "BossChallengeScreen": "Converted to ConsumerWidget; reads xpReward/coinReward via _bossRewardsProvider derived from categoryByIdProvider(nodeId).",
+        "PlaygroundProvider": "Legacy ChangeNotifier — markCompleted/grantBossReward/grantRewardChest now mutate only completed/unlocked node ids; no XP/coin deltas (xp: 25/100/15, coins: 10/50/5 literals removed).",
+        "UserProgressService": "_pushProgressionIntoPlayground(playground, updated) — canonical funnel pushes updated profile.progression into playgroundProgressProvider via replace()."
+      },
+      "files": [
+        "lib/features/playground/presentation/screens/level_screen.dart",
+        "lib/features/playground/presentation/screens/challenge_screen.dart",
+        "lib/features/playground/presentation/screens/boss_challenge_screen.dart",
+        "lib/features/playground/presentation/providers/playground_provider.dart",
+        "lib/features/playground/presentation/providers/playground_providers.dart",
+        "lib/core/services/user_progress_service.dart"
+      ]
+    },
+    "phase35_foundation_fill": {
+      "phase": "Phase 35",
+      "purpose": "Foundation fill that unblocked the build — FirebaseConfig, FirestoreKeys subcollection constants, DioClient + three interceptors, ApiEndpoints Quiz Hub endpoints, four missing pubspec deps, ProfileController.replaceLocalProfile, leaderboard async contract.",
+      "components": {
+        "FirebaseConfig": "lib/core/config/firebase_config.dart — static isPlatformConfigured (Firebase.apps.isNotEmpty) and firestore (FirebaseFirestore.instance) accessors.",
+        "FirestoreKeys subcollections": "lib/core/constants/firestore_keys.dart — progression, study_stats, statistics, streak, playground, quiz_sessions, quiz_history, category_progress, profile, currentDocId, categories.",
+        "DioClient": "lib/core/network/dio_client.dart — DioClient.build({baseUrl}) factory with 10s/15s/15s timeouts, JSON headers, validateStatus 2xx-4xx, and LoggerInterceptor + RetryInterceptor + AuthInterceptor pipeline.",
+        "AuthInterceptor": "lib/core/network/interceptors/auth_interceptor.dart — opt-in Bearer <idToken> via X-Require-Auth request header.",
+        "LoggerInterceptor": "lib/core/network/interceptors/logger_interceptor.dart — debug-only dart:developer.log of request/response/error.",
+        "RetryInterceptor": "lib/core/network/interceptors/retry_interceptor.dart — GET/HEAD only, exponential backoff baseDelay*2^attempt + jitter, 3 attempts, honours CancelToken.",
+        "ApiEndpoints quiz-hub": "lib/core/constants/api_endpoints.dart — quizApiBaseUrl + quizCategories/quizCategoryById/quizQuestions/quizRandomQuestions/quizQuestionById/quizBulkDelete/quizImportQuestions/quizExportQuestions.",
+        "pubspec deps": "firebase_core ^4.12.1, firebase_auth ^6.1.0, firebase_crashlytics ^5.0.4, dio ^5.7.0 added.",
+        "ProfileController.replaceLocalProfile": "lib/features/profile/presentation/controllers/profile_controller.dart — pushes externally-computed UserProfile into UI state (UI mirror only; Firestore write lives in UserProgressService transaction).",
+        "Leaderboard async contract": "lib/features/leaderboard/data/datasources/leaderboard_remote_datasource.dart + repository — read/readAll/write changed from sync to Future-returning to match Firestore shape."
+      },
+      "files": [
+        "lib/core/config/firebase_config.dart",
+        "lib/core/constants/firestore_keys.dart",
+        "lib/core/constants/api_endpoints.dart",
+        "lib/core/network/dio_client.dart",
+        "lib/core/network/interceptors/auth_interceptor.dart",
+        "lib/core/network/interceptors/logger_interceptor.dart",
+        "lib/core/network/interceptors/retry_interceptor.dart",
+        "lib/features/profile/presentation/controllers/profile_controller.dart",
+        "lib/features/leaderboard/data/datasources/leaderboard_remote_datasource.dart",
+        "lib/features/leaderboard/data/repositories/leaderboard_repository_impl.dart",
+        "pubspec.yaml"
+      ],
+      "validation": {
+        "flutter_analyze_lib": "0 errors / 0 warnings",
+        "flutter_build_apk_debug": "succeeds — build/app/outputs/flutter-apk/app-debug.apk"
+      }
+    },
     "weakness_tracker": {
       "layers": [
         "data (stub)",
@@ -4095,7 +4193,7 @@
                           "files": [
                             "quiz_reward_card.dart",
                             "quiz_score_card.dart",
-                          "quiz_stats_row.dart"
+                            "quiz_stats_row.dart"
                           ],
                           "path": "lib/features/quiz_engine/presentation/widgets/quiz_summary"
                         },
@@ -5728,5 +5826,1103 @@
       "path": "test/core/widgets/ai/ai_hint_card_test.dart",
       "purpose": "Verifies AI hint card renders title, hint, type label 'AI Analysis', topic, difficulty, quick tip."
     }
-  ]
+  ],
+  "phase40_level_system": {
+    "status": "implemented",
+    "curve": {
+      "file": "lib/core/services/level_curve.dart",
+      "shape": "base=100, growth=1.25 per level",
+      "publicApi": [
+        "xpRequiredForLevel(int level)",
+        "LevelSnapshot compute(int totalXp)"
+      ],
+      "consumers": [
+        "UserProgressService._nextProfile",
+        "UserProgressService._transactionalProgression",
+        "RewardRuleCatalog.levelFor",
+        "profile_repository_impl._emptyProfile",
+        "firestore_profile_remote_datasource",
+        "mock_profile_remote_datasource",
+        "user_account datasources",
+        "playground_provider.seed",
+        "playground_screen fallback",
+        "user_profile_model.fromMap fallback",
+        "level_screen _LockedSection"
+      ]
+    },
+    "entity": {
+      "file": "lib/features/profile/domain/entities/user_profile.dart",
+      "fields_added": [
+        "previousLevelThreshold",
+        "nextLevelThreshold",
+        "totalLevelUpsCompleted",
+        "lastLevelUpAt",
+        "pendingLevelRewards"
+      ],
+      "valueObjects": [
+        "PendingLevelReward (level, xpBonus, coinBonus, badgeId, unlockedTitles, queuedAt, claimed)"
+      ]
+    },
+    "funnel": {
+      "file": "lib/core/services/user_progress_service.dart",
+      "behaviour": "Detects levelDelta>0 between previous and next LevelSnapshot snapshots; queues one PendingLevelReward per crossed level; publishes LevelUpEvent per reward.",
+      "rewards": "xpBonus = xpCost/4; coinBonus = xpCost/10; badgeId=level_<n>_clear at n%5==0; unlockedTitles=[Legendary Scholar] at n%10==0.",
+      "transaction": "Atomic XP/coins/level write preserves claimed entries, appends new rewards by (level@queuedAt) key.",
+      "claimFlow": "claimLevelReward(reward) persists claimed=true via merge-write; enqueued on retry queue failure."
+    },
+    "event_bus": {
+      "file": "lib/core/services/level_up_event_bus.dart",
+      "provider": "levelUpEventBusProvider (StateNotifierProvider<LevelUpEventBus, LevelUpEvent?>)"
+    },
+    "queue": {
+      "file": "lib/features/gamification/presentation/providers/level_reward_queue_provider.dart",
+      "provider": "levelRewardQueueProvider",
+      "drainage": "markClaimed(reward) removes from local state and delegates to userProgressService.claimLevelReward."
+    },
+    "consumers": [
+      "lib/app.dart (root ref.listen<LevelUpEvent?> pops LevelRewardDialog)",
+      "lib/features/playground/presentation/widgets/level_reward_dialog.dart (showConfetti toggle, layered ConfettiAnimation)",
+      "lib/features/gamification/presentation/widgets/confetti_animation.dart (filled stub)",
+      "lib/features/quiz_results/presentation/screens/quiz_results_screen.dart (applyQuizCompletion before gamification engine)",
+      "lib/features/gamification/presentation/providers/streak_state_provider.dart (ref.listen on profileControllerProvider)",
+      "lib/features/playground/presentation/screens/level_screen.dart (_LockedSection derives levelNumber from profile)",
+      "lib/features/playground/presentation/screens/level_completed_screen.dart (removed 25/10 fallbacks)"
+    ],
+    "files_added": [
+      "lib/core/services/level_curve.dart",
+      "lib/core/services/level_up_event_bus.dart",
+      "lib/features/gamification/presentation/providers/level_reward_queue_provider.dart"
+    ],
+    "files_modified": [
+      "lib/core/services/user_progress_service.dart",
+      "lib/features/profile/domain/entities/user_profile.dart",
+      "lib/features/profile/data/models/user_profile_model.dart",
+      "lib/features/profile/data/repositories/profile_repository_impl.dart",
+      "lib/features/profile/data/datasources/firestore_profile_remote_datasource.dart",
+      "lib/features/profile/data/datasources/mock_profile_remote_datasource.dart",
+      "lib/features/user_account/data/datasources/firestore_app_user_remote_datasource.dart",
+      "lib/features/user_account/data/datasources/mock_app_user_remote_datasource.dart",
+      "lib/features/playground/presentation/providers/playground_provider.dart",
+      "lib/features/playground/presentation/screens/playground_screen.dart",
+      "lib/features/playground/presentation/screens/level_screen.dart",
+      "lib/features/playground/presentation/screens/level_completed_screen.dart",
+      "lib/features/playground/presentation/widgets/level_reward_dialog.dart",
+      "lib/features/gamification/domain/services/reward_rule_catalog.dart",
+      "lib/features/gamification/presentation/widgets/confetti_animation.dart",
+      "lib/features/gamification/presentation/providers/streak_state_provider.dart",
+      "lib/features/quiz_results/presentation/screens/quiz_results_screen.dart",
+      "lib/app.dart",
+      "Plans/codebase_structure.md",
+      "Plans/codebase_structure.json",
+      "docs/backendconnection/backend.mermaid"
+    ],
+    "validation": {
+      "flutter_analyze_lib": "0 errors / 0 warnings",
+      "tests": "Phase 38/39 tests unchanged; new LevelCurve.compute correctness covered by the canonical funnel path",
+      "build": "flutter build apk --debug (inherited from Phase 35 foundation fill)"
+    },
+    "trade_offs": [
+      "Client-time idempotency (no FieldValue.serverTimestamp) — accepted; documented in §6.24.",
+      "Dual engines with shared curve — gamification owns badge/chest drops; canonical owns XP/coins/level writes.",
+      "Pending rewards as a field on ProgressionEntity (not a subcollection) — atomic with the rest of the progression write."
+    ]
+  },
+  "phase41_coin_economy": {
+    "status": "implemented",
+    "service": {
+      "file": "lib/core/services/coin_service.dart",
+      "class": "CoinService",
+      "public_api": [
+        "grant({source, sourceId, amount, reason?, metadata?, type?})",
+        "spend({source, sourceId, amount, reason?, metadata?})",
+        "refund({source, sourceId, amount, reason?, metadata?})",
+        "balance()",
+        "watchBalance()",
+        "replayQueuedGuestGrants(uid)",
+        "runGrantInTransaction({tx, progressionRef, ledgerRef, seed})"
+      ],
+      "dedup": "sourceKey = '${source.id}:$sourceId'",
+      "transaction_atomicity": "balance doc + ledger doc commit in one firestore.runTransaction",
+      "offline_path": "ProgressWriteRetryQueue.enqueue(ledger marker)"
+    },
+    "repository": {
+      "file": "lib/features/profile/data/repositories/coin_ledger_repository_impl.dart",
+      "interface": "CoinLedgerRepository",
+      "implementations": [
+        "FirestoreCoinLedgerRepositoryImpl",
+        "InMemoryCoinLedgerRepository"
+      ],
+      "firestore_collection": "users/{uid}/coin_ledger/{txId}",
+      "ordering": "createdAt desc, limit=50",
+      "errors_mapped_to": "CacheFailure via ErrorHandler"
+    },
+    "providers": {
+      "file": "lib/features/profile/presentation/providers/coin_providers.dart",
+      "names": [
+        "coinLedgerRepositoryProvider",
+        "coinServiceProvider",
+        "coinBalanceProvider",
+        "coinHistoryProvider"
+      ]
+    },
+    "consumers": [
+      "UserProgressService._creditQuizCoins",
+      "UserProgressService.claimLevelReward",
+      "RewardsController.grantFromEvent",
+      "RewardsController.openChest",
+      "RewardsController.claimDailyReward",
+      "CoinHistoryScreen"
+    ],
+    "files_added": [
+      "lib/features/profile/domain/entities/coin_transaction.dart",
+      "lib/features/profile/data/repositories/coin_ledger_repository_impl.dart",
+      "lib/core/services/coin_service.dart",
+      "lib/features/profile/presentation/providers/coin_providers.dart",
+      "lib/features/profile/presentation/screens/coin_history_screen.dart"
+    ],
+    "files_modified": [
+      "lib/core/constants/firestore_keys.dart",
+      "lib/core/errors/failures.dart",
+      "lib/core/services/progress_write_retry_queue.dart",
+      "lib/core/services/user_progress_service.dart",
+      "lib/features/gamification/data/repositories/rewards_repository_impl.dart",
+      "lib/features/gamification/data/datasources/rewards_local_datasource.dart",
+      "lib/features/gamification/domain/entities/user_rewards_state.dart",
+      "lib/features/gamification/presentation/providers/rewards_provider.dart",
+      "Plans/codebase_structure.md",
+      "Plans/codebase_structure.json",
+      "docs/backendconnection/backend.mermaid"
+    ],
+    "validation": {
+      "flutter_analyze_lib": "0 errors / 0 warnings",
+      "dual_counter_resolved": "profile.progression.coins is the canonical balance; rewards.totalCoins is a deprecated mirror via _mirrorCanonicalBalance on load()",
+      "coin_bonus_latent_bug_fixed": "claimLevelReward now routes coinBonus through CoinService.grant(source: levelReward, ...)",
+      "atomic_transaction": "balance doc + ledger doc commit in one firestore.runTransaction",
+      "offline_retry": "ProgressWriteRetryQueue routes ledger writes via kLedgerMarker"
+    },
+    "decision_log": [
+      "D1: ledger shape = subcollection users/{uid}/coin_ledger/{txId} — atomic per-grant, ordered createdAt desc",
+      "D2: dedup = sourceKey = '${source.id}:$sourceId'",
+      "D3: CoinService is the only writer to progression/current.coins; quiz funnel calls grant() then reads balanceAfter for the rest of progression",
+      "D4: UserRewardsState.totalCoins is deprecated; mirrored via _mirrorCanonicalBalance on load()",
+      "D5: claimLevelReward becomes a Firestore runTransaction — atomic claim + coinBonus credit",
+      "D6: guest guard via empty user.id || empty user.email"
+    ]
+  },
+  "phase42_mission_progress": {
+    "status": "implemented",
+    "service": {
+      "file": "lib/core/services/mission_progress_service.dart",
+      "class": "MissionProgressService",
+      "public_api": [
+        "watch(uid)",
+        "list(uid)",
+        "summary({uid, missionId})",
+        "recordAttempt({uid, mission, attempt})",
+        "markRewardsClaimed({uid, missionId})"
+      ],
+      "dedup": "sessionId from MissionProgressAttempt (typically QuizSessionEntity.sessionId)",
+      "transaction_atomicity": "summary doc read + transition + write commit in one firestore.runTransaction",
+      "transitions": {
+        "stars": "monotonic non-decreasing; +1 / +2 / +3 based on achievedGoal + score",
+        "best_score": "newBestScore = max(prevBestScore, attempt.score)",
+        "completion_status": "unlocked -> started -> completed -> perfect (perfect is sticky)",
+        "history": "append ISO timestamp, cap at 50 newest-first",
+        "total_completed": "increments only when achievedGoal == true"
+      }
+    },
+    "repository": {
+      "interface_file": "lib/features/gamification/domain/repositories/mission_progress_repository.dart",
+      "impl_file": "lib/features/gamification/data/repositories/mission_progress_repository_impl.dart",
+      "firestore_subcollection": "users/{uid}/mission_progress/{missionId}",
+      "schema": {
+        "uid": "string",
+        "missionId": "string",
+        "stars": "int",
+        "bestScore": "int",
+        "completionStatus": "locked|unlocked|started|completed|perfect|expired",
+        "completionTimestampsIso": "string[] capped 50 newest-first",
+        "totalCompleted": "int",
+        "currentMissionId": "string|null",
+        "rewardsClaimed": "bool",
+        "lastUpdatedAtIso": "string iso8601"
+      },
+      "implementations": [
+        "FirestoreMissionProgressRemoteDataSource",
+        "InMemoryMissionProgressRemoteDataSource"
+      ]
+    },
+    "datasource": {
+      "file": "lib/features/gamification/data/datasources/mission_progress_remote_datasource.dart",
+      "abstract_class": "MissionProgressRemoteDataSource",
+      "stream_strategy": "CollectionReference.snapshots() — emits on every doc mutation",
+      "fallback": "InMemoryMissionProgressRemoteDataSource when !FirebaseConfig.isPlatformConfigured"
+    },
+    "value_object": {
+      "file": "lib/features/gamification/domain/entities/mission_summary_entity.dart",
+      "class": "MissionSummaryEntity",
+      "completion_status_enum": "MissionCompletionStatus { locked, unlocked, started, completed, perfect, expired }",
+      "persistence": "toMap / fromMap round-trip; == / hashCode include history list"
+    },
+    "attempt_value_object": {
+      "file": "lib/core/services/mission_progress_attempt.dart",
+      "class": "MissionProgressAttempt",
+      "fields": [
+        "sessionId",
+        "score (0-100)",
+        "achievedGoal",
+        "completedAtIso",
+        "metadata"
+      ]
+    },
+    "providers": {
+      "names": [
+        "missionProgressServiceProvider",
+        "missionProgressRepositoryProvider",
+        "missionProgressBundleProvider (autoDispose StreamProvider)",
+        "missionProgressBundleProvider (sync convenience)"
+      ],
+      "controller_extensions": "MissionsController._subscribeSummaries re-emits on auth state change"
+    },
+    "consumers": [
+      "UserProgressService._propagateQuizToMissions",
+      "UserProgressService.applyQuizCompletion (step 7)",
+      "MissionsController.recordQuizAttempt",
+      "MissionsController.claim (markRewardsClaimed post-loop)",
+      "MissionsHubScreen (dashboard counters)",
+      "ProfileScreen (mission summary tile)",
+      "Playground (mission badge counter)"
+    ],
+    "files_added": [
+      "lib/features/gamification/domain/entities/mission_summary_entity.dart",
+      "lib/features/gamification/domain/repositories/mission_progress_repository.dart",
+      "lib/features/gamification/data/repositories/mission_progress_repository_impl.dart",
+      "lib/features/gamification/data/datasources/mission_progress_remote_datasource.dart",
+      "lib/core/services/mission_progress_service.dart",
+      "lib/core/services/mission_progress_attempt.dart"
+    ],
+    "files_modified": [
+      "lib/core/constants/firestore_keys.dart",
+      "lib/core/errors/failures.dart",
+      "lib/core/services/user_progress_service.dart",
+      "lib/features/gamification/presentation/providers/mission_provider.dart",
+      "Plans/codebase_structure.md",
+      "Plans/codebase_structure.json"
+    ],
+    "validation": {
+      "flutter_analyze_lib": "0 errors / 0 warnings (info-level prefer_initializing_formals are pre-existing stylistic suggestions across the codebase)",
+      "dedup_holds": "DuplicateMissionAttemptFailure raised on identical sessionId",
+      "best_score_monotonic": "Math.max enforced server-side in runTransaction",
+      "stars_monotonic": "previousStars + deltaStars committed inside transaction",
+      "completion_status_sticky_perfect": "_statusForAttempt never drops perfect -> completed",
+      "guest_guard": "GuestMissionWriteFailure raised when uid is empty; controller falls back to local catalog mirror",
+      "realtime_stream": "missionProgressBundleProvider re-emits on auth state change"
+    },
+    "decision_log": [
+      "D1: subcollection users/{uid}/mission_progress/{missionId} (one doc per mission) — atomic per-mission updates",
+      "D2: dedup via sessionId stored in completionTimestampsIso — full audit trail without a parallel dedup collection",
+      "D3: separate MissionCompletionStatus enum from catalog MissionStatus — backend schema is stable even when local-only statuses are added",
+      "D4: MissionProgressService is the only writer — controller, repository, and use cases all funnel through it; identical shape to Phase 41's CoinService",
+      "D5: funnel integration runs unawaited in applyQuizCompletion — canonical XP/coins/level funnel still completes synchronously; mission progress is best-effort",
+      "D6: per-category match — _matchableMissions(category) filters by MissionCategory so non-quiz missions still require explicit incrementProgress(...) calls"
+    ]
+  },
+  "phase43_statistics": {
+    "status": "implemented",
+    "service": {
+      "file": "lib/core/services/statistics_service.dart",
+      "class": "StatisticsService",
+      "public_api": [
+        "watch(uid) -> Stream<UserStatisticsEntity>",
+        "watchCategories(uid) -> Stream<List<CategoryStatisticsEntity>>",
+        "summary(uid) -> UserStatisticsEntity",
+        "category({uid, categoryId}) -> CategoryStatisticsEntity",
+        "recordQuizCompletion({uid, input}) -> Result<UserStatisticsEntity>"
+      ],
+      "value_object": "QuizStatisticsInput (sessionId, categoryId, subjectName, totalQuestions, correctAnswers, wrongAnswers, skippedAnswers, scorePercent, totalSeconds, xpEarned, coinsEarned, completedAtIso)",
+      "dedup": "sessionId stored in lastSessionIds (capped 50) on both statistics/current and category_statistics/{categoryId}",
+      "transaction_atomicity": "statistics/current + category_statistics/{categoryId} commit in one firestore.runTransaction",
+      "transitions": {
+        "totalAnswered": "monotonic non-decreasing; += totalQuestions",
+        "correctAnswers": "monotonic non-decreasing; += correctAnswers",
+        "wrongAnswers": "monotonic non-decreasing; += wrongAnswers + skippedAnswers",
+        "accuracy": "computed (correct / totalAnswered); never stored as a stale percent",
+        "averageTimeSecondsPerQuestion": "EMA with alpha=0.2; recent attempts dominate",
+        "bestScore": "Math.max(prev, attempt.score) — never overwritten with a lower score",
+        "lastSessionIds": "append new sessionId, cap at 50 newest-first"
+      },
+      "offline_path": "_writeDirectly runs the same dedup + transition against the in-memory mirror",
+      "guest_guard": "GuestStatisticsWriteFailure raised when uid is empty"
+    },
+    "repository": {
+      "interface_file": "lib/features/statistics/domain/repositories/statistics_repository.dart",
+      "impl_file": "lib/features/statistics/data/repositories/statistics_repository_impl.dart",
+      "snapshot_bundle": "StatisticsSnapshot { user: UserStatisticsEntity, categories: List<CategoryStatisticsEntity> }",
+      "firestore_subcollections": [
+        "users/{uid}/statistics/current",
+        "users/{uid}/category_statistics/{categoryId}"
+      ],
+      "schema_user": {
+        "uid": "string",
+        "totalAnswered": "int",
+        "correctAnswers": "int",
+        "wrongAnswers": "int",
+        "accuracy": "double",
+        "averageTimeSecondsPerQuestion": "double",
+        "totalStudyMinutes": "int",
+        "totalXp": "int",
+        "totalCoins": "int",
+        "lastSessionIds": "string[] capped 50 newest-first",
+        "lastUpdatedAtIso": "string iso8601"
+      },
+      "schema_category": {
+        "uid": "string",
+        "categoryId": "string",
+        "subjectName": "string",
+        "totalQuestions": "int",
+        "correct": "int",
+        "wrong": "int",
+        "skipped": "int",
+        "bestScore": "int",
+        "averageSecondsPerQuestion": "double",
+        "totalMinutes": "int",
+        "xpEarned": "int",
+        "lastSessionIds": "string[] capped 50 newest-first",
+        "lastUpdatedAtIso": "string iso8601"
+      }
+    },
+    "aggregator": {
+      "file": "lib/features/statistics/domain/services/statistics_aggregator.dart",
+      "class": "StatisticsAggregator",
+      "purpose": "rebuilds the legacy StatisticsEntity / StudyStatisticsEntity / SubjectStatisticsEntity shapes from the new UserStatisticsEntity + CategoryStatisticsEntity rows",
+      "weak_threshold": "accuracyPercent < 60",
+      "strong_threshold": "accuracyPercent >= 75"
+    },
+    "entities": {
+      "file": "lib/features/statistics/domain/entities/user_statistics_entity.dart",
+      "classes": [
+        "UserStatisticsEntity",
+        "CategoryStatisticsEntity"
+      ]
+    },
+    "providers": {
+      "names": [
+        "statisticsServiceProvider",
+        "userStatisticsStreamProvider (autoDispose)",
+        "categoryStatisticsStreamProvider (autoDispose)",
+        "statisticsRepositoryProvider",
+        "userStatisticsLiveProvider",
+        "categoryStatisticsLiveProvider",
+        "statisticsControllerProvider (realtime subscription)"
+      ],
+      "controller_subscriptions": "StatisticsController._subscribe opens service.watch(uid) + service.watchCategories(uid); cancels on dispose; re-emits on auth state change"
+    },
+    "consumers": [
+      "UserProgressService._recordQuizCompletionStats (step 8 of applyQuizCompletion)",
+      "StatisticsController state machine (legacy + realtime)",
+      "StatisticsScreen + accuracy / xp / study-time sections",
+      "ProfileScreen statistics tile",
+      "Playground (subject-level counters via categoryStatisticsLiveProvider)",
+      "WeaknessTracker (now feeds from per-category aggregates)",
+      "Leaderboard dependencies (totalXp / totalCoins stay in sync)"
+    ],
+    "files_added": [
+      "lib/features/statistics/domain/entities/user_statistics_entity.dart",
+      "lib/features/statistics/domain/services/statistics_aggregator.dart",
+      "lib/core/services/statistics_service.dart"
+    ],
+    "files_modified": [
+      "lib/core/constants/firestore_keys.dart",
+      "lib/core/services/user_progress_service.dart",
+      "lib/features/statistics/domain/repositories/statistics_repository.dart",
+      "lib/features/statistics/data/repositories/statistics_repository_impl.dart",
+      "lib/features/statistics/presentation/providers/statistics_provider.dart",
+      "Plans/codebase_structure.md",
+      "Plans/codebase_structure.json",
+      "docs/backendconnection/backend.mermaid"
+    ],
+    "validation": {
+      "flutter_analyze_lib": "0 errors / 0 warnings (info-level prefer_initializing_formals are pre-existing stylistic suggestions across the codebase)",
+      "dedup_holds": "DuplicateStatisticsFailure raised on identical sessionId",
+      "monotonic_counters": "totalAnswered / correctAnswers / wrongAnswers only increment inside transaction",
+      "best_score_monotonic": "Math.max enforced server-side in runTransaction",
+      "ema_alpha": "averageTimeSecondsPerQuestion uses alpha=0.2; recent attempts dominate",
+      "guest_guard": "GuestStatisticsWriteFailure raised when uid is empty; funnel swallows it",
+      "realtime_stream": "userStatisticsStreamProvider + categoryStatisticsStreamProvider re-emit on auth state change"
+    },
+    "decision_log": [
+      "D1: two-layer Firestore layout — users/{uid}/statistics/current (global) + users/{uid}/category_statistics/{categoryId} (per-subject); both written in one transaction",
+      "D2: dedup via sessionId stored in lastSessionIds — audit trail doubles as dedup index",
+      "D3: StatisticsService is the single writer — controller, repository, and use cases all funnel through it; mirrors Phase 41 CoinService / Phase 42 MissionProgressService shape",
+      "D4: StatisticsAggregator projects the new entities onto the legacy StatisticsEntity / SubjectStatisticsEntity shapes — every Phase 28 use case + widget keeps compiling",
+      "D5: funnel integration runs unawaited in applyQuizCompletion — canonical XP/coins/level funnel still completes synchronously; statistics are best-effort",
+      "D6: category_statistics/{categoryId} is separate from category_progress/{categoryId} — lifetime accumulator vs best-score snapshot"
+    ]
+  },
+  "phase44_leaderboards": {
+    "scope": "National / University / Friends / Weekly / Seasonal leaderboards powered by Firestore",
+    "files_added": [
+      "lib/core/constants/leaderboard_season.dart (LeaderboardSeason.currentWeekId / currentSeasonId / lifetime)",
+      "lib/features/leaderboard/domain/entities/leaderboard_ranking_entity.dart (LeaderboardRankingEntity + composite score formula)",
+      "lib/core/services/leaderboard_service.dart (LeaderboardService.recordQuizCompletion + watch + snapshot)",
+      "lib/features/leaderboard/data/datasources/leaderboard_remote_datasource.dart (Firestore reader + leaderboardCategoryStreamProvider)"
+    ],
+    "files_modified": [
+      "lib/features/leaderboard/domain/entities/leaderboard_entry_entity.dart (optional accuracyPercent / completedCategories / completedMissions / score / seasonId fields)",
+      "lib/features/leaderboard/data/models/leaderboard_entry_model.dart (JSON round-trip for new fields)",
+      "lib/features/leaderboard/data/datasources/firestore_leaderboard_remote_datasource.dart (signature alignment with optional uid/preview params)",
+      "lib/features/leaderboard/data/repositories/leaderboard_repository_impl.dart (remote-first with auth-aware uidProvider)",
+      "lib/features/leaderboard/presentation/providers/leaderboard_provider.dart (controller subscribes to realtime streams for every scope)",
+      "lib/core/services/user_progress_service.dart (step 9: _refreshLeaderboardEntries after every quiz completion)"
+    ],
+    "service": {
+      "class": "LeaderboardService",
+      "writer": "users/{uid}/leaderboard_entries/{scope}__{seasonId} — five docs per user per active season",
+      "atomicity": "firestore.runTransaction: re-read previous doc -> merge ranking payload -> tx.set(merge: true). previousRank preserved across writes so the UI rank-change indicator survives reconnects",
+      "fields": [
+        "uid, scope (friends|university|national|weekly|seasonal), seasonId, username, university, avatarUrl, level, xp, coins, streakDays, accuracyPercent, completedCategories, completedMissions, badges, isPremium, previousRank, lastUpdatedAtIso"
+      ],
+      "dedup": "One row per (uid, scope, seasonId) — lastSessionIds is not needed because the row is a derived aggregate; the funnel-level dedup already prevents re-submission",
+      "guest_guard": "uid.isEmpty returns early; no Firestore writes for unauthenticated users"
+    },
+    "repository": {
+      "class": "LeaderboardRepositoryImpl",
+      "remote_first": "preferRemote = true; falls back to local seed when remote errors / no rows / guest",
+      "auth_aware": "uidProvider closure reads authStateProvider.user.id so the Firestore query targets the authenticated user"
+    },
+    "providers": [
+      "leaderboardServiceProvider",
+      "leaderboardRemoteDataSourceProvider (Firestore reader)",
+      "leaderboardRepositoryProvider (remote-first)",
+      "leaderboardControllerProvider (subscribes to leaderboardCategoryStreamProvider for every scope; re-emits on auth change)",
+      "leaderboardCategoryStreamProvider.family<LeaderboardScope> (auth-aware realtime)"
+    ],
+    "consumers": [
+      "UserProgressService.applyQuizCompletion step 9: _refreshLeaderboardEntries rebuilds the user's row after every quiz completion",
+      "LeaderboardScreen + LeaderboardDetailScreen (no UI changes; existing entries surface ranking inputs transparently via the new optional fields)",
+      "ProfileScreen (next phase: surface composite score on the rank card)"
+    ],
+    "ranking_inputs": [
+      "xp (weight 1.0)",
+      "level * 100 (1.0)",
+      "completedCategories * 50 (1.0)",
+      "completedMissions * 75 (1.0)",
+      "accuracyPercent (1.0)",
+      "coins * 0.05 (small weight)",
+      "streakDays * 20 (streak reward)"
+    ],
+    "validation": {
+      "flutter_analyze_lib": "0 errors / 0 warnings (info-level prefer_initializing_formals are pre-existing stylistic suggestions across the codebase)",
+      "architecture": "Presentation -> Domain -> Repository -> Service -> Firestore; remote-first; LeaderboardService is the only writer",
+      "guest_guard": "uid.isEmpty path returns UserStatisticsEntity.empty / empty list / falls back to local preview",
+      "realtime_stream": "leaderboardCategoryStreamProvider.family<LeaderboardScope> re-emits whenever Firestore writes a new row; LeaderboardController auto-merges into view state",
+      "funnel_integration": "applyQuizCompletion step 9 runs unawaited; canonical XP/coins/level funnel still completes synchronously; leaderboard write is best-effort"
+    },
+    "decision_log": [
+      "D1: per-user subcollection users/{uid}/leaderboard_entries/{scope}__{seasonId} — one doc per active scope; queryable via collection snapshot",
+      "D2: composite score formula lives on LeaderboardRankingEntity.score — derived at read-time from xp, level, completedCategories, completedMissions, accuracyPercent, coins, streakDays",
+      "D3: weekly + seasonal rows partition by LeaderboardSeason.currentWeekId / currentSeasonId (ISO week / calendar quarter); national + university + friends use 'lifetime'",
+      "D4: LeaderboardService is the single writer; remote datasource is read-only (write is a documented no-op for backward compatibility)",
+      "D5: existing LeaderboardEntryEntity gains optional accuracyPercent / completedCategories / completedMissions / score / seasonId fields — every existing constructor call site stays valid",
+      "D6: LeaderboardController subscribes to leaderboardCategoryStreamProvider for every scope via ref.listen; replaces the prior one-shot fetchAll path with a realtime stream"
+    ]
+  },
+  "phase46_bookmarks": {
+    "scope": "Firestore-backed bookmarks subcollection powering the universal BookmarkActionButton across Question / Lesson / AI Response / Note sources",
+    "files_added": [
+      "lib/core/services/bookmark_service.dart (BookmarkService — single Firestore writer + userBookmarksStreamProvider)",
+      "lib/features/bookmarks/data/datasources/bookmark_remote_datasource.dart (replaces historic UnimplementedError stub; pull / push / upsert / removeById / remove / clearAll — all delegate to BookmarkService)"
+    ],
+    "files_modified": [
+      "lib/core/constants/firestore_keys.dart (bookmarksSubcollection = 'bookmarks' under users/{uid}/* subcollection block)",
+      "lib/features/bookmarks/data/repositories/bookmark_repository_impl.dart (preferRemote = true; remoteStreamFactory wiring; subscribes to userBookmarksStreamProvider; mutations forward to BookmarkService)",
+      "lib/features/bookmarks/presentation/providers/bookmark_provider.dart (BookmarkController ref.listen on userBookmarksStreamProvider; bookmarkCurrentUidProvider + bookmarkRemoteDataSourceProvider + bookmarkRepositoryProvider rewired to inject BookmarkService)"
+    ],
+    "service": {
+      "class": "BookmarkService",
+      "writer": "users/{uid}/bookmarks/{bookmarkId} — one doc per saved item; bookmarkId = '${BookmarkItemType.name}_${itemId}' (deterministic, idempotent)",
+      "atomicity": "firestore.collection(users/{uid}/bookmarks).doc(id).set(model.toJson(), SetOptions(merge: true)) — existing fields preserved while updatedAtIso propagates; re-toggling the same item collapses into the same doc",
+      "fields": [
+        "id, itemType, itemId, title, subtitle, thumbnailIconKey, createdAtIso, updatedAtIso, sourceFeature, tags, routeName, routeParams"
+      ],
+      "methods": [
+        "add(uid, model) — merge write; returns the persisted BookmarkModel (with auto-set createdAt / updatedAt)",
+        "remove(uid, type, itemId) — deletes by (type, itemId); returns true when the doc existed",
+        "removeById(uid, id) — deletes by deterministic id string",
+        "clearAll(uid) — WriteBatch deletes every doc; returns the count actually removed",
+        "snapshot(uid) — one-shot read of every bookmark the user owns",
+        "watch(uid) — CollectionReference.snapshots() realtime stream"
+      ],
+      "dedup": "Deterministic document id '${type.name}_${itemId}' — concurrent saves from another device collapse into the same Firestore doc (idempotent)",
+      "guest_guard": "uid.isEmpty || _firestore == null returns empty list / false / 0 / no-op so offline / pre-auth boots never touch Firestore"
+    },
+    "repository": {
+      "class": "BookmarkRepositoryImpl",
+      "remote_first": "preferRemote = true; subscribes to userBookmarksStreamProvider via remoteStreamFactory closure so the local cache mirrors Firestore in realtime",
+      "auth_aware": "bookmarkCurrentUidProvider resolves auth.user.id; empty uid short-circuits every remote write",
+      "cache": "BookmarkLocalDataSource — in-memory filter / sort / search / paginate engine; writeAll / writeOne / removeOne emit change events for widget refresh"
+    },
+    "providers": [
+      "bookmarkServiceProvider (Provider<BookmarkService>)",
+      "userBookmarksStreamProvider (StreamProvider.autoDispose<List<BookmarkModel>> — auth-aware realtime)",
+      "bookmarkLocalDataSourceProvider (Provider<BookmarkLocalDataSource>)",
+      "bookmarkCurrentUidProvider (Provider<String> — resolves auth.user.id)",
+      "bookmarkRemoteDataSourceProvider (Provider<BookmarkRemoteDataSource> — wires BookmarkService + uidProvider)",
+      "bookmarkRepositoryProvider (Provider<BookmarkRepository> — remote-first)",
+      "addBookmarkUseCaseProvider / removeBookmarkUseCaseProvider / toggleBookmarkUseCaseProvider / isBookmarkedUseCaseProvider / getBookmarksUseCaseProvider / clearBookmarksUseCaseProvider / syncBookmarksUseCaseProvider",
+      "bookmarkControllerProvider (StateNotifierProvider<BookmarkController, BookmarksViewState> — ref.listen on userBookmarksStreamProvider; re-hydrates view state on every snapshot)",
+      "bookmarkIdsProvider (Provider<Set<String>> — derived key set used by BookmarkActionButton)",
+      "isBookmarkedProvider (FutureProvider.family<bool, BookmarkLookupArgs>)"
+    ],
+    "consumers": [
+      "BookmarkActionButton (universal toggle for Question / Lesson / AI Response / Note / Search Result / Bookmark Tile)",
+      "BookmarksScreen + Bookmarks Detail + 15+ bookmark widgets (no UI changes; existing entries surface transparently)",
+      "BookmarkController (filter / sort / search / paginate / refresh / loadMore / clearAll / removeById / removeEntity / toggle)"
+    ],
+    "validation": {
+      "flutter_analyze_lib": "0 errors / 0 warnings (down from 4 issues introduced by Phase 46 wiring; matches project baseline)",
+      "architecture": "Presentation -> Domain -> Repository -> Datasource (remote via BookmarkService) -> Firestore; remote-first; BookmarkService is the only writer",
+      "guest_guard": "uid.isEmpty path returns BookmarkEntity.empty / empty list / no-op; BookmarkRemoteDataSource.upsert + removeById + clearAll short-circuit before touching Firestore",
+      "realtime_stream": "userBookmarksStreamProvider -> BookmarkRepositoryImpl.remoteStreamFactory -> BookmarkLocalDataSource.writeAll -> BookmarkController ref.listen -> BookmarksViewState hydrate; BookmarkActionButton updates instantly",
+      "idempotency": "deterministic doc id '${BookmarkItemType.name}_${itemId}' ensures concurrent toggles collapse (no duplicate rows, no merge conflicts)",
+      "best_effort_writes": "BookmarkService.add / remove / clearAll catch all errors and debugPrint + return safely so the local cache remains the canonical UI mirror"
+    },
+    "decision_log": [
+      "D1: subcollection users/{uid}/bookmarks + deterministic bookmarkId = '${type.name}_${itemId}' — wins over a capped array field (race with concurrent toggles) and over a top-level collection (fragments the existing users/{uid}/* security rule pattern)",
+      "D2: BookmarkService is the single writer; BookmarkRemoteDataSource is a thin facade that preserves the existing pull() / push() contract for tests + legacy callers while routing every write through BookmarkService",
+      "D3: BookmarkLocalDataSource remains the query engine (filter / sort / search / paginate); realtime stream mirrors into it via the remoteStreamFactory closure so the UI sees fresh rows without manual refresh",
+      "D4: BookmarkController subscribes to userBookmarksStreamProvider via ref.listen; every Firestore snapshot re-hydrates BookmarksViewState.items so the screen re-renders without polling",
+      "D5: bookmarkIdsProvider derives keys from bookmarkControllerProvider.items (key = '${type.name}:${itemId}') so BookmarkActionButton updates instantly after every mutation",
+      "D6: best-effort mutations + guest guard — local cache remains the UI mirror even when Firestore writes fail; BookmarkService catches all errors and debugPrint for diagnostics",
+      "D7: historical UnimplementedError stub on BookmarkRemoteDataSource replaced; pull() now delegates to BookmarkService.snapshot(uid); push() is a no-op reconcile so the existing repository contract stays intact for tests",
+      "D8: BookmarkEntity / BookmarkRepository / BookmarkItemType / BookmarkModel unchanged — Phase 46 is purely a persistence layer upgrade; every UI call site and use case stays valid"
+    ]
+  },
+  "phase47_notes": {
+    "scope": "Firestore-backed notes subcollection powering the Notes screen, Highlights, and AI Notes across Personal / Highlight / AI types",
+    "files_added": [
+      "lib/core/services/note_service.dart (NoteService — single Firestore writer + userNotesStreamProvider)",
+      "lib/features/notes/data/datasources/notes_remote_datasource.dart (replaces historic UnimplementedError stub; pull / push / upsert / removeById / clearAll — all delegate to NoteService)"
+    ],
+    "files_modified": [
+      "lib/core/constants/firestore_keys.dart (notesSubcollection = 'notes' + highlightsSubcollection = 'highlights' + aiNotesSubcollection = 'ai_notes' under users/{uid}/* subcollection block)",
+      "lib/features/notes/data/repositories/notes_repository_impl.dart (preferRemote = true; remoteStreamFactory wiring; subscribes to userNotesStreamProvider; mutations forward to NoteService)",
+      "lib/features/notes/presentation/providers/notes_provider.dart (NotesController ref.listen on userNotesStreamProvider; notesCurrentUidProvider + notesRemoteDatasourceProvider + notesRepositoryProvider rewired to inject NoteService)"
+    ],
+    "service": {
+      "class": "NoteService",
+      "writer": "users/{uid}/notes/{noteId} — one doc per note; noteId = existing note.id (deterministic, idempotent). Convenience mirrors: users/{uid}/highlights/{noteId} + users/{uid}/ai_notes/{noteId} populated alongside the canonical write when type ∈ {highlight, ai}",
+      "atomicity": "firestore.collection(users/{uid}/notes).doc(id).set(model.toJson(), SetOptions(merge: true)) — existing fields preserved while updatedAtIso propagates; re-saving the same note collapses into the same doc",
+      "fields": [
+        "id, title, content, preview, type (personal|highlight|ai), category (personal|study|review|insight|question|ai), color, isPinned, isFavorite, tags, attachments, createdAtIso, updatedAtIso, sourceFeature"
+      ],
+      "methods": [
+        "add(uid, model) — merge write to canonical notes + mirror write to highlights / ai_notes (when type matches); returns the persisted NoteModel (with auto-set createdAt / updatedAt)",
+        "remove(uid, noteId) — deletes the canonical note + the highlight / ai_note mirrors; returns true when the doc existed",
+        "clearAll(uid) — WriteBatch deletes every doc across notes / highlights / ai_notes; returns the count actually removed",
+        "snapshot(uid) — one-shot read of every note the user owns",
+        "watch(uid) — CollectionReference.snapshots() realtime stream"
+      ],
+      "dedup": "Deterministic document id (existing note.id) — concurrent saves from another device collapse into the same Firestore doc (idempotent)",
+      "guest_guard": "uid.isEmpty || _firestore == null returns empty list / false / 0 / no-op so offline / pre-auth boots never touch Firestore"
+    },
+    "repository": {
+      "class": "NotesRepositoryImpl",
+      "remote_first": "preferRemote = true; subscribes to userNotesStreamProvider via remoteStreamFactory closure so the local cache mirrors Firestore in realtime",
+      "auth_aware": "notesCurrentUidProvider resolves auth.user.id; empty uid short-circuits every remote write",
+      "cache": "NotesLocalDataSource — in-memory filter / sort / search / paginate engine; writeAll / writeOne / removeOne emit change events for widget refresh"
+    },
+    "providers": [
+      "noteServiceProvider (Provider<NoteService>)",
+      "userNotesStreamProvider (StreamProvider.autoDispose<List<NoteModel>> — auth-aware realtime)",
+      "notesLocalDataSourceProvider (Provider<NotesLocalDataSource>)",
+      "notesCurrentUidProvider (Provider<String> — resolves auth.user.id)",
+      "notesRemoteDatasourceProvider (Provider<NotesRemoteDatasource> — wires NoteService + uidProvider)",
+      "notesRepositoryProvider (Provider<NotesRepository> — remote-first)",
+      "getAllNotesUseCaseProvider / getPinnedNotesUseCaseProvider / searchNotesUseCaseProvider / createNoteUseCaseProvider / updateNoteUseCaseProvider / deleteNoteUseCaseProvider / togglePinUseCaseProvider / toggleFavoriteUseCaseProvider / saveHighlightUseCaseProvider / saveAiNoteUseCaseProvider",
+      "notesControllerProvider (StateNotifierProvider<NotesController, NotesViewState> — ref.listen on userNotesStreamProvider; re-hydrates view state on every snapshot)"
+    ],
+    "consumers": [
+      "NotesScreen + CreateNoteScreen + EditNoteScreen + NoteDetailScreen (no UI changes; existing entries surface transparently via the new persistence layer)",
+      "NotesController (filter / sort / search / paginate / refresh / loadMore / create / update / remove / togglePin / toggleFavorite / saveHighlight / saveAiNote / clearAll)",
+      "25+ note widgets (note_card, note_grid_item, note_list_item, ai_note_card, highlight_card, note_category_tabs, note_search_bar, note_palette_picker, note_share_sheet, etc.)"
+    ],
+    "validation": {
+      "flutter_analyze_lib": "0 errors / 0 warnings (down from 0 issues introduced by Phase 47 wiring; matches project baseline)",
+      "architecture": "Presentation -> Domain -> Repository -> Datasource (remote via NoteService) -> Firestore; remote-first; NoteService is the only writer",
+      "guest_guard": "uid.isEmpty path returns empty list / no-op; NotesRemoteDatasource.upsert + removeById + clearAll short-circuit before touching Firestore",
+      "realtime_stream": "userNotesStreamProvider -> NotesRepositoryImpl.remoteStreamFactory -> NotesLocalDataSource.writeAll -> NotesController ref.listen -> NotesViewState hydrate; NotesScreen updates instantly",
+      "idempotency": "deterministic doc id (existing note.id) ensures concurrent saves collapse (no duplicate rows, no merge conflicts)",
+      "best_effort_writes": "NoteService.add / remove / clearAll catch all errors and debugPrint + return safely so the local cache remains the canonical UI mirror",
+      "highlight_ai_mirrors": "highlight + ai note writes land in canonical notes + the corresponding mirror subcollection so filtered queries (highlights-only, ai-only) work without extra round-trips"
+    },
+    "decision_log": [
+      "D1: single canonical subcollection users/{uid}/notes — every note (personal / highlight / ai) lives here with a type field; mirrors in users/{uid}/highlights + users/{uid}/ai_notes support filtered queries",
+      "D2: NoteService is the single writer; NotesRemoteDatasource is a thin facade that preserves the existing pull() / push() contract for tests + legacy callers while routing every write through NoteService",
+      "D3: NotesLocalDataSource remains the query engine (filter / sort / search / paginate); realtime stream mirrors into it via the remoteStreamFactory closure so the UI sees fresh rows without manual refresh",
+      "D4: NotesController subscribes to userNotesStreamProvider via ref.listen; every Firestore snapshot re-hydrates NotesViewState.items + pinnedPreview + recentPreview so the screen re-renders without polling",
+      "D5: saveHighlight + saveAiNote convert to canonical NoteEntity (type=highlight / ai) and route through createNote; NoteService adds the type-aware mirror write so the highlights / ai_notes subcollections stay in sync",
+      "D6: best-effort mutations + guest guard — local cache remains the UI mirror even when Firestore writes fail; NoteService catches all errors and debugPrint for diagnostics",
+      "D7: historical UnimplementedError stub on NotesRemoteDatasource replaced; pull() now delegates to NoteService.snapshot(uid); push() is a no-op reconcile so the existing repository contract stays intact for tests",
+      "D8: NoteEntity / HighlightEntity / AiNoteEntity / NoteType / NoteCategory / NotesRepository unchanged — Phase 47 is purely a persistence layer upgrade; every UI call site, use case, and widget stays valid"
+    ]
+  },
+  "phase48_notifications": {
+    "scope": "Firestore-backed notifications inbox + FCM token registration + settings slice persistence, wired to the existing frontend without UI changes",
+    "files_added": [
+      "lib/core/services/notification_service.dart (NotificationService — single Firestore writer for notifications + fcm_tokens; userNotificationsStreamProvider)",
+      "lib/core/services/settings_service.dart (SettingsService — Firestore writer for users/{uid}/settings/notification_preferences; userNotificationPreferencesStreamProvider)",
+      "lib/core/services/fcm_bootstrap.dart (FcmBootstrap — auth-aware FCM token-registration seam; pluggable tokenSource / deviceIdSource for the future firebase_messaging SDK)"
+    ],
+    "files_modified": [
+      "lib/core/constants/firestore_keys.dart (notificationsSubcollection = 'notifications' + fcmTokensSubcollection = 'fcm_tokens' + settingsSubcollection = 'settings' + notificationPreferencesDoc = 'notification_preferences' under users/{uid}/* subcollection block)",
+      "lib/features/notifications/domain/entities/notification_entity.dart (NotificationType { reminder, mission, reward, announcement, system, aiSuggestion, subscription, dailyQuiz, streak, levelUp, xpEarned, coinReward, generic } + NotificationPriority { low, normal, high }; optional type / imageUrl / deepLink / priority / expiresAtIso / payload fields)",
+      "lib/features/notifications/data/models/notification_model.dart (JSON round-trip for new fields; copyWith preserves every existing call site)",
+      "lib/features/notifications/data/datasources/notification_remote_datasource.dart (replaces historic UnimplementedError stub; pull / push / upsert / markAsRead / markAllAsRead / remove — all delegate to NotificationService)",
+      "lib/features/notifications/data/repositories/notification_repository_impl.dart (preferRemote = true; remoteStreamFactory wiring; subscribes to userNotificationsStreamProvider; mutations forward to NotificationService)",
+      "lib/features/notifications/presentation/providers/notification_provider.dart (NotificationController ref.listen on userNotificationsStreamProvider; notificationCurrentUidProvider + notificationRemoteDataSourceProvider + notificationRepositoryProvider rewired to inject NotificationService; registerFcmTokenProvider + unregisterFcmTokenProvider providers for the FCM bootstrap; notificationUnreadCountProvider unchanged)",
+      "lib/features/settings/data/repositories/settings_repository_impl.dart (SettingsService + uidProvider injection; notification-preferences slice mirrored to Firestore on every saveSettings call)",
+      "lib/features/settings/presentation/providers/settings_provider.dart (injects settingsServiceProvider + notificationCurrentUidProvider into SettingsRepositoryImpl)"
+    ],
+    "service": {
+      "class": "NotificationService",
+      "writer": "users/{uid}/notifications/{notificationId} — one doc per notification; docId auto-generated unless supplied (Cloud Functions pass deterministic ids). Mirror: users/{uid}/fcm_tokens/{deviceId} — one doc per registered device, supports multiple devices per user",
+      "atomicity": "firestore.collection(users/{uid}/notifications).doc(id).set(model.toJson(), SetOptions(merge: true)) — existing fields preserved while the new state propagates; re-issuing the same notification id collapses into the same doc",
+      "fields": [
+        "id, title, message, createdAtIso, routeName, isRead, type, imageUrl, deepLink, priority, expiresAtIso, payload"
+      ],
+      "methods": [
+        "upsert(uid, model) — merge write to canonical notifications; auto-stamps createdAtIso when missing; returns the persisted NotificationModel",
+        "markAsRead(uid, notificationId) — merge update with {isRead: true}; returns true on success",
+        "markAllAsRead(uid) — WriteBatch flips isRead on every unread doc; returns the count actually updated",
+        "remove(uid, notificationId) — reads doc.get() then ref.delete(); returns true when the doc existed",
+        "snapshot(uid) — one-shot read of every notification the user owns",
+        "watch(uid) — CollectionReference.snapshots() realtime stream",
+        "registerToken(uid, deviceId, token, platform, metadata) — merge write to fcm_tokens/{deviceId}; supports multiple devices per user; bumps lastSeenAtIso on every call",
+        "unregisterToken(uid, deviceId) — sign-out cleanup",
+        "watchTokens(uid) — realtime stream of every registered device token"
+      ],
+      "dedup": "Auto-generated doc ids for ad-hoc writes; deterministic ids from Cloud Functions merge into the same Firestore doc across devices (no duplicate rows, no merge conflicts)",
+      "guest_guard": "uid.isEmpty || _firestore == null returns empty list / false / 0 / no-op so offline / pre-auth boots never touch Firestore"
+    },
+    "repository": {
+      "class": "NotificationRepositoryImpl",
+      "remote_first": "preferRemote = true; subscribes to userNotificationsStreamProvider via remoteStreamFactory closure so the local cache mirrors Firestore in realtime",
+      "auth_aware": "notificationCurrentUidProvider resolves auth.user.id; empty uid short-circuits every remote write",
+      "cache": "NotificationLocalDataSource — in-memory mirror; readAll / writeAll (no per-row events; realtime stream is the source of truth)"
+    },
+    "providers": [
+      "notificationServiceProvider (Provider<NotificationService>)",
+      "userNotificationsStreamProvider (StreamProvider.autoDispose<List<NotificationModel>> — auth-aware realtime)",
+      "notificationLocalDataSourceProvider (Provider<NotificationLocalDataSource>)",
+      "notificationCurrentUidProvider (Provider<String> — resolves auth.user.id)",
+      "notificationRemoteDataSourceProvider (Provider<NotificationRemoteDataSource> — wires NotificationService + uidProvider)",
+      "notificationRepositoryProvider (Provider<NotificationRepository> — remote-first)",
+      "getNotificationsUseCaseProvider / markAsReadUseCaseProvider / markAllAsReadUseCaseProvider / deleteNotificationUseCaseProvider",
+      "notificationControllerProvider (StateNotifierProvider<NotificationController, NotificationViewState> — ref.listen on userNotificationsStreamProvider; re-hydrates view state on every snapshot)",
+      "notificationUnreadCountProvider (Provider<int> — derived from NotificationController.items.where(!isRead).length; consumed by playground + profile for the badge count)",
+      "registerFcmTokenProvider (Provider<Future<bool> Function({deviceId, token, platform, metadata})> — wraps NotificationService.registerToken)",
+      "unregisterFcmTokenProvider (Provider<Future<bool> Function({deviceId})> — wraps NotificationService.unregisterToken)",
+      "settingsServiceProvider (Provider<SettingsService>)",
+      "userNotificationPreferencesStreamProvider (StreamProvider.autoDispose<Map<String, dynamic>?> — auth-aware realtime)",
+      "fcmBootstrapProvider (Provider<FcmBootstrap> — auth-aware FCM token-registration seam)"
+    ],
+    "consumers": [
+      "NotificationScreen + NotificationTile + EmptyNotification (no UI changes; existing entries surface transparently via the new persistence layer)",
+      "NotificationController (load / markRead / markAllRead / remove)",
+      "PlaygroundScreen + ProfileScreen — consume notificationUnreadCountProvider for the badge count; the same provider now reflects realtime Firestore updates",
+      "SettingsController — every saveSettings call mirrors the notification-preferences slice to users/{uid}/settings/notification_preferences (best-effort; local cache remains the UI mirror)",
+      "FcmBootstrap.bind(ref, bootstrap) — call from AppConfig.bootstrap() to register / refresh FCM tokens on every auth state change"
+    ],
+    "validation": {
+      "flutter_analyze_lib": "0 errors / 0 warnings (matches project baseline)",
+      "architecture": "Presentation -> Domain -> Repository -> Datasource (remote via NotificationService) -> Firestore; remote-first; NotificationService is the only writer",
+      "guest_guard": "uid.isEmpty path returns empty list / no-op; NotificationRemoteDataSource.upsert + markAsRead + markAllAsRead + remove short-circuit before touching Firestore",
+      "realtime_stream": "userNotificationsStreamProvider -> NotificationRepositoryImpl.remoteStreamFactory -> NotificationLocalDataSource.writeAll -> NotificationController ref.listen -> NotificationViewState hydrate; NotificationScreen + notificationUnreadCountProvider update instantly",
+      "idempotency": "auto-generated doc ids for ad-hoc writes; deterministic ids from Cloud Functions merge into the same Firestore doc across devices",
+      "best_effort_writes": "NotificationService.upsert / markAsRead / markAllAsRead / remove / registerToken / unregisterToken catch all errors and debugPrint + return safely so the local cache remains the canonical UI mirror",
+      "fcm_token_registration": "FcmBootstrap.bind wires a ref.listen on authStateProvider that (re)registers the token on every sign-in; the tokenSource / deviceIdSource stubs return null / placeholder so the layer compiles before firebase_messaging is added to pubspec.yaml",
+      "settings_persistence": "SettingsRepositoryImpl.saveSettings mirrors the notification-preferences slice to users/{uid}/settings/notification_preferences; best-effort failure (logged) keeps the local cache canonical",
+      "deep_linking": "notification.routeName / deepLink survives a JSON round-trip; NotificationTile / router still consume the existing field; future iOS / Android intent parsing slots into the same payload"
+    },
+    "decision_log": [
+      "D1: canonical notifications subcollection users/{uid}/notifications — every notification lives here with a type field; Cloud Functions target the same layout so the contract is stable across the Flutter layer + the backend",
+      "D2: fcm_tokens subcollection users/{uid}/fcm_tokens/{deviceId} — one doc per device, supports multiple devices per user (phone + tablet); auto-stamps registeredAtIso / lastSeenAtIso",
+      "D3: settings subcollection users/{uid}/settings/notification_preferences — only the notification-preferences slice is mirrored to Firestore today; theme / language / accessibility / privacy remain on-device because they don't need a backend mirror",
+      "D4: NotificationService is the single writer; NotificationRemoteDataSource is a thin facade that preserves the existing readAll() signature for the existing repository contract while routing every write through NotificationService",
+      "D5: NotificationLocalDataSource remains the query / cache engine; realtime stream mirrors into it via the remoteStreamFactory closure so the UI sees fresh rows without manual refresh",
+      "D6: NotificationController subscribes to userNotificationsStreamProvider via ref.listen; every Firestore snapshot re-hydrates NotificationViewState.items + notificationUnreadCountProvider; replaces the prior one-shot fetchAll path with a realtime stream",
+      "D7: FcmBootstrap.bind is the FCM entry point — auth-aware token-registration seam that compiles today (stub tokenSource) and slots the firebase_messaging SDK in via a one-line override",
+      "D8: NotificationEntity / NotificationRepository / notification use cases / NotificationScreen / NotificationTile / EmptyNotification / notificationUnreadCountProvider unchanged — Phase 48 is purely a persistence layer upgrade; every UI call site, use case, and widget stays valid",
+      "D9: best-effort mutations + guest guard — local cache remains the UI mirror even when Firestore writes fail; NotificationService catches all errors and debugPrint for diagnostics",
+      "D10: NotificationType + NotificationPriority drive the icon, color, and the Cloud Function selector on the backend; pre-Phase 48 constructors stay valid because every new field defaults safely"
+    ]
+  },
+  "phase51_backend_security": {
+    "scope": "Backend security layer — firestore.rules + storage.rules + role validation + repository preconditions + provider lifecycle reset + AuthInterceptor role checks + SecureDioClient. No UI redesign.",
+    "files_added": [
+      "lib/core/security/role_guard.dart (RoleGuard.hasRole + assertAuthorized + assertOwnership + SecurityAction enum + AuthorizationException — translates to AuthorizationFailure via ErrorHandler.map)",
+      "lib/core/security/security_context.dart (securityContextProvider reads authStateProvider.user; isAuthenticatedProvider + isAdminProvider + isPremiumProvider)",
+      "lib/core/security/auth_precondition.dart (AuthGuard class — composition over mixin; assertAuthenticated / assertAdmin / assertPremium / assertOwnership)",
+      "lib/core/providers/auth_lifecycle.dart (authStateResetProvider — Provider<void> that listens to authStateProvider and invalidates a hard-coded list of user-bound feature providers on logout)",
+      "lib/core/network/secure_dio_client.dart (SecureDioClient.build — wraps DioClient.build(secure: true, authInterceptor: AuthInterceptor.withRef(ref)) with default X-Require-Auth: true + X-Require-Role: authenticated)"
+    ],
+    "files_modified": [
+      "firebase.json (rules + indexes + storage references; emulator ports for auth + functions + firestore + storage + ui)",
+      "firestore.indexes.json (composite indexes for coin_ledger / leaderboard_entries / quiz_history / quiz_sessions / notifications / bookmarks / notes)",
+      "firestore.rules (production-ready — users/{uid} owner-only; subcollections owner-only with uid validation; coin_ledger append-only; public content collections read-authenticated / write-admin; subscriptions read-owner / write-admin; aiTutorLogs read-owner only; adminLogs + analyticsEvents write-admin only; default-deny catch-all)",
+      "storage.rules (production-ready — users/{uid}/** owner-only with image/* + 5MB ceiling; premium/** premium-or-admin; content/** read-authenticated / write-admin; default-deny catch-all)",
+      "lib/core/errors/error_handler.dart (AuthorizationException → AuthorizationFailure mapping)",
+      "lib/core/network/interceptors/auth_interceptor.dart (added X-Require-Role header + AuthInterceptor.withRef(Ref ref) constructor + 403/401 reject path + X-Force-Token-Refresh support)",
+      "lib/core/network/dio_client.dart (DioClient.build gained secure: bool = false + optional authInterceptor parameter; secure mode prepends AuthInterceptor before RetryInterceptor)",
+      "lib/features/bookmarks/data/repositories/bookmark_repository_impl.dart + bookmark_provider.dart (Ref injected; _guard.assertAuthenticated at top of addBookmark / removeBookmark / clearAll / sync)",
+      "lib/features/notes/data/repositories/notes_repository_impl.dart + notes_provider.dart (Ref injected; _guard.assertAuthenticated at top of createNote / updateNote / deleteNote / togglePin / toggleFavorite / clearAll)",
+      "lib/features/notifications/data/repositories/notification_repository_impl.dart + notification_provider.dart (Ref injected; _guard.assertAuthenticated at top of markAsRead / markAllAsRead / delete)",
+      "lib/features/profile/data/repositories/profile_repository_impl.dart + profile_providers.dart (Ref injected; _guard.assertAuthenticated at top of updateProfile / uploadAvatar / deleteAccount)",
+      "lib/features/ai_tutor/data/repositories/ai_tutor_repository_impl.dart + ai_tutor_provider.dart (Ref injected; _guard.assertAuthenticated at top of saveConversation / savePromptEntry / togglePromptFavorite / deleteConversation)",
+      "lib/features/quiz_engine/data/repositories/quiz_repository_impl.dart + quiz_providers.dart (Ref injected; _guard.assertAuthenticated at top of submitQuizSession / toggleQuestionBookmark / reportQuestion)",
+      "lib/features/review/data/repositories/review_repository_impl.dart + review_provider.dart (Ref injected; _guard.assertAuthenticated at top of toggleBookmark)",
+      "lib/features/search/data/repositories/search_repository_impl.dart + search_provider.dart (Ref injected; _guard.assertAuthenticated at top of saveRecentSearch / clearRecentSearches)",
+      "lib/features/settings/data/repositories/settings_repository_impl.dart + settings_provider.dart (Ref injected; _guard.assertAuthenticated at top of saveSettings — mirror gated, local write still succeeds)",
+      "lib/features/offline/data/repositories/offline_repository_impl.dart + offline_provider.dart (Ref injected; _guard.assertAuthenticated at top of enqueueDownload / enqueueSync)"
+    ],
+    "firestore_rules": {
+      "helpers": ["isSignedIn()", "isOwner(uid)", "isAdmin() — reads users/{request.auth.uid}/role and matches 'admin'", "isPremium() — role == 'premium' or 'admin'", "hasFields(data, fields)"],
+      "users_collections": "users/{userId} and every users/{userId}/* subcollection: read/write only when request.auth.uid == userId; delete denied (soft-delete via Cloud Function)",
+      "public_content_collections": "categories / subjects / chapters / lessons / mockTests / questions / achievements / rewards / gamificationState / leaderboardEntries: read = isSignedIn(), write = isAdmin()",
+      "subscriptions": "read-owner, write-admin (Cloud Functions manage)",
+      "subcollection_uid_validation": "create + update on quiz_sessions / quiz_history / coin_ledger / bookmarks / notes / highlights / ai_notes / notifications / fcm_tokens: request.resource.data.uid == request.auth.uid",
+      "coin_ledger_append_only": "create allowed when uid + source + sourceId + amount + createdAt are present; update + delete denied",
+      "admin_analytics": "adminLogs + analyticsEvents: write-admin only",
+      "default_deny": "match /{document=**} { allow read, write: if false(); }"
+    },
+    "storage_rules": {
+      "user_assets": "users/{uid}/{allPaths=**}: read = isOwner(uid); write = isOwner(uid) && request.resource.contentType matches 'image/.*' && request.resource.size < 5MB",
+      "premium_assets": "premium/{allPaths=**}: read = isPremiumOrAdmin(); write = isAdmin()",
+      "content_assets": "content/{allPaths=**}: read = isSignedIn(); write = isAdmin()",
+      "default_deny": "match /{allPaths=**} { allow read, write: if false(); }"
+    },
+    "role_helpers": {
+      "SecurityAction": ["readOwn", "writeOwn", "readPublic", "mutateAdmin", "mutatePremium"],
+      "RoleGuard.hasRole": "UserEntity != null; admin always wins; premium clears premium-only checks; free requires any signed-in user",
+      "RoleGuard.assertAuthorized": "throws AuthorizationException when hasRole returns false; carries action + requiredRole + actualRole",
+      "RoleGuard.assertOwnership": "throws when user.id is null / empty / mismatched with the resource's userId; then enforces the action's role",
+      "AuthGuard.assertAuthenticated": "delegates to RoleGuard.assertAuthorized(writeOwn, securityContextProvider.read())",
+      "AuthGuard.assertAdmin": "delegates to RoleGuard.assertAuthorized(mutateAdmin, ...)",
+      "AuthGuard.assertPremium": "delegates to RoleGuard.assertAuthorized(mutatePremium, ...)",
+      "AuthGuard.assertOwnership": "delegates to RoleGuard.assertOwnership(writeOwn, user, userId)"
+    },
+    "security_context": {
+      "securityContextProvider": "Provider<UserEntity?> — ref.watch(authStateProvider).user; null for guests",
+      "isAuthenticatedProvider": "Provider<bool> — true when securityContextProvider is non-null",
+      "isAdminProvider": "Provider<bool> — true when RoleGuard.hasRole(user, UserRole.admin)",
+      "isPremiumProvider": "Provider<bool> — true when RoleGuard.hasRole(user, UserRole.premium)"
+    },
+    "auth_lifecycle": {
+      "authStateResetProvider": "Provider<void> — listens to authStateProvider; when next.user == null, invalidates a hard-coded list of user-bound feature providers",
+      "registered_providers": [
+        "bookmarkControllerProvider",
+        "notesControllerProvider",
+        "notificationControllerProvider",
+        "profileControllerProvider",
+        "rewardsControllerProvider",
+        "streakControllerProvider",
+        "missionsControllerProvider",
+        "leaderboardControllerProvider",
+        "statisticsControllerProvider",
+        "aiHistoryControllerProvider",
+        "searchControllerProvider",
+        "subscriptionControllerProvider",
+        "syncControllerProvider",
+        "settingsControllerProvider"
+      ],
+      "extension": "New feature providers register themselves in _authStateResetDispatcherProvider when added"
+    },
+    "auth_interceptor": {
+      "X-Require-Auth": "Boolean header — when true, attaches Authorization: Bearer <idToken> on every request; rejects with 401 when currentUser is null (was a silent no-op pre-Phase 51)",
+      "X-Require-Role": "admin | premium | authenticated — when set, the role check (AuthInterceptor.withRef) rejects with 403 when the active user's role doesn't match",
+      "X-Force-Token-Refresh": "Boolean header — when true, calls user.getIdToken(true) to recover from expired tokens",
+      "secure_dio_client": "SecureDioClient.build({baseUrl, ref, extraInterceptors}) — wraps DioClient.build(secure: true, authInterceptor: AuthInterceptor.withRef(ref), defaultHeaders: {X-Require-Auth: 'true', X-Require-Role: 'authenticated'}) so Cloud Function callers get auth + role by default"
+    },
+    "provider_surface": [
+      "securityContextProvider (Provider<UserEntity?>)",
+      "isAuthenticatedProvider / isAdminProvider / isPremiumProvider",
+      "authStateResetProvider (Provider<void>)",
+      "SecureDioClient.build factory (auth-aware Cloud Functions client)"
+    ],
+    "consumers": [
+      "BookmarkRepositoryImpl + BookmarkController (precondition on every mutating call)",
+      "NotesRepositoryImpl + NotesController",
+      "NotificationRepositoryImpl + NotificationController",
+      "ProfileRepositoryImpl + ProfileController (updateProfile / uploadAvatar / deleteAccount)",
+      "AiTutorRepositoryImpl + AiHistoryController / AiChatController",
+      "QuizRepositoryImpl + QuizResultController (submitQuizSession / toggleQuestionBookmark / reportQuestion)",
+      "ReviewRepositoryImpl (toggleBookmark)",
+      "SearchRepositoryImpl + SearchController (saveRecentSearch / clearRecentSearches)",
+      "SettingsRepositoryImpl + SettingsController (saveSettings — mirror gated, local write still succeeds)",
+      "OfflineRepositoryImpl + SyncController (enqueueDownload / enqueueSync)",
+      "Future Cloud Functions callers use SecureDioClient.build(baseUrl, ref) instead of plain DioClient.build"
+    ],
+    "validation": {
+      "flutter_analyze_lib": "0 errors / 0 warnings",
+      "authenticated_user_owns_data": "firestore.rules + storage.rules enforce request.auth.uid == userId for every read / write under users/{uid}",
+      "admin_only_collections": "categories / subjects / chapters / lessons / mockTests / questions / achievements / rewards / gamificationState / leaderboardEntries / adminLogs / analyticsEvents: write = isAdmin()",
+      "repository_auth_precondition": "AuthGuard.assertAuthenticated at the top of every mutating method; throws AuthorizationException which ErrorHandler.map translates to AuthorizationFailure",
+      "provider_reset": "authStateResetProvider invalidates every registered provider when the active user transitions to null; new providers must register in auth_lifecycle.dart",
+      "api_authentication": "SecureDioClient.build emits Authorization: Bearer <idToken> + X-Require-Auth: true + X-Require-Role: authenticated on every Cloud Function call; AuthInterceptor rejects with 401 / 403 when the caller doesn't satisfy the requirement",
+      "architecture_consistency": "Presentation -> Domain -> Repository -> Datasource (remote via the existing single-writer services) -> Firestore; repository security is layered on top via AuthGuard without changing the existing flow"
+    },
+    "decision_log": [
+      "D1: firestore.rules + storage.rules are the source of truth. Backend enforcement is the primary defence; client guards (AuthGuard, repository preconditions) are defence-in-depth",
+      "D2: Centralised role helpers in lib/core/security/. RoleGuard + AuthGuard + AuthorizationException integrate with the existing ErrorHandler.map → AuthorizationFailure path so the rest of the app never sees raw exceptions",
+      "D3: AuthInterceptor extends with X-Require-Role + X-Force-Token-Refresh. The existing X-Require-Auth now surfaces 401 when currentUser is null (was a silent no-op). DioClient.build(secure: true) inserts AuthInterceptor BEFORE the RetryInterceptor so 401s / 403s surface without retry storms",
+      "D4: Single-writer Firestore services remain the only writers. No Phase 51 code touches data sources — services are already guest-guarded and the firestore.rules mirrors the contract server-side",
+      "D5: Provider reset is centralised. authStateResetProvider invalidates a hard-coded list of feature providers on logout. New providers register themselves in auth_lifecycle.dart when added",
+      "D6: AuthGuard is composition, not a mixin. Dart 3 mixin semantics require all members to be concrete; using a plain class with Ref captured once in the constructor avoids non_abstract_class_inherits_abstract_member errors and keeps the surface minimal",
+      "D7: Quiz Hub stays public. docs/apidoc/api documents Quiz Hub as 'No auth required'; Phase 51 does NOT add auth to Quiz Hub calls",
+      "D8: firebase.json + firestore.indexes.json are populated with rules + indexes + functions references + emulator ports so deployment works out of the box",
+      "D9: Existing Failure types are reused. AuthorizationFailure (already in failures.dart) handles every denial path; no new failure type is added",
+      "D10: firestore.isAdmin() uses a doc lookup (users/{uid}/role) rather than a custom claim. Custom claims require setCustomUserClaims + token refresh — Phase 52 owns that upgrade. The Firestore doc check still denies unauthenticated writes"
+    ]
+  },
+  "phase53_dynamic_ui_backend_integration": {
+    "scope": "Wire the secured Phase 51 backend to the frontend. Replace the remaining hardcoded literals (playground world map, library sheet, locked dialog) and build the empty home + gamification rewards surfaces from existing providers. No new services — the existing single-writer services and 8-collection quiz funnel are reused.",
+    "files_added": [
+      "lib/features/playground/presentation/providers/world_steps_provider.dart (WorldStepsSnapshot + WorldStepsSource + worldStepsProvider — merges categoriesStreamProvider with playgroundProgressProvider; maps CategoryNodeKind to WorldStepKind)",
+      "lib/features/home/presentation/providers/home_provider.dart (HomeSnapshot + homeControllerProvider — aggregator over profileControllerProvider + streakControllerProvider + missionsControllerProvider + coinHistoryProvider + categoriesStreamProvider)"
+    ],
+    "files_modified": [
+      "lib/features/playground/presentation/screens/playground_screen.dart (deleted static const int _activeIndex = 2, _PlaygroundStageData._steps literal, _provider legacy ChangeNotifier, _showLockedDialog branch, _nodeIndex helper; replaced library-sheet literals with derived CategoryStatisticsEntity values; Locked literal replaced with PlaygroundStrings.lockedLevelLabel; tap handler routes through categoriesStreamProvider + playgroundProgressProvider)",
+      "lib/features/home/presentation/screens/home_screen.dart (ConsumerStatefulWidget with bootstrap-once in initState; uses homeControllerProvider; renders 8 cards in a ListView)",
+      "lib/features/home/presentation/widgets/header_card.dart (UserProfile? avatar + displayName + role/premium CTA → /profile)",
+      "lib/features/home/presentation/widgets/xp_card.dart (totalXp + level + xpInLevel/xpForNextLevel progress bar)",
+      "lib/features/home/presentation/widgets/streak_card.dart (days + at-risk warning from StreakState.isAtRisk)",
+      "lib/features/home/presentation/widgets/daily_goal_card.dart (done/total of daily missions + progress bar + top mission title)",
+      "lib/features/home/presentation/widgets/continue_learning_card.dart (first incomplete category from categoriesStreamProvider, sorted by order; CTA → /lessons?nodeId=...)",
+      "lib/features/home/presentation/widgets/quick_action_grid.dart (static 4-tile grid: Quiz / Lessons / Bookmarks / Notes — uses kDefaultBottomNavItems-style navigation)",
+      "lib/features/home/presentation/widgets/recent_activity.dart (last 5 CoinTransactionEntity entries from coinHistoryProvider with credit/debit icon)",
+      "lib/features/home/presentation/widgets/premium_banner.dart (gradient banner when isPremium == false; CTA → /subscription)",
+      "lib/features/gamification/presentation/screens/rewards_screen.dart (ConsumerWidget composing StreakCard + ClaimRewardButton + DailyMissionCard + RewardHistoryTile; reads from rewardsControllerProvider + missionsControllerProvider)",
+      "lib/core/constants/app_strings.dart (added 15 home-screen strings: free, signInPrompt, homeXpCardTitle, homeStreakCardTitle, homeDailyGoalTitle, homeContinueLearningTitle, homeContinueLearningCta, homeQuickActionQuiz/Lessons/Bookmarks/Notes, homeRecentActivityTitle, homeRecentActivityEmpty, homePremiumBannerTitle, homePremiumBannerSubtitle, homePremiumBannerCta)",
+      "lib/core/providers/auth_lifecycle.dart (appended homeControllerProvider, playgroundProgressProvider, worldStepsProvider to _authStateResetDispatcherProvider list — 17 providers total)"
+    ],
+    "dead_code_removed": [
+      "playground_screen.dart: _PlaygroundStageData._steps literal (7 hardcoded WorldStep entries)",
+      "playground_screen.dart: static const int _activeIndex = 2",
+      "playground_screen.dart: _showLockedDialog method + LockedLevel import",
+      "playground_screen.dart: library sheet literals (chapterCount: 8, completedChapters: 3, unlockedLessonCount: 5, estimatedReadingMinutes: 12)",
+      "playground_screen.dart: 'Locked' literal at line 466"
+    ],
+    "dynamic_surfaces": {
+      "playground_world_map": "categoriesStreamProvider (Firestore categories collection) → WorldStep list via CategoryNodeKind adapter; completion from playgroundProgressProvider.completedLevelIds",
+      "library_sheet": "categoryStatisticsLiveProvider per milestone id; fallback to constants (8/0/0/16) when no stats exist",
+      "home_dashboard": "homeControllerProvider aggregates 5 providers into HomeSnapshot; screen renders 8 stateless widgets",
+      "home_continue_learning": "first category of kind=lesson or kind=mockTest sorted by order",
+      "home_recent_activity": "last 5 entries from coinHistoryProvider StreamProvider",
+      "home_daily_goal": "MissionsViewState.daily done/total + top mission title",
+      "rewards_screen_xp": "UserRewardsState.totalXP + level.currentXP / level.nextLevelXP progress bar",
+      "rewards_screen_streak": "StreakCard widget consuming UserRewardsState.streak",
+      "rewards_screen_daily_chest": "ClaimRewardButton gated on streak.isTodayClaimed(now)",
+      "rewards_screen_missions": "missionsControllerProvider.daily.take(3) → DailyMissionCard",
+      "rewards_screen_history": "rewardsControllerProvider.viewState.history.take(10) → RewardHistoryTile"
+    },
+    "quiz_funnel": {
+      "service": "lib/core/services/user_progress_service.dart::applyQuizCompletion (line 70)",
+      "invoked_from": "lib/features/quiz_results/presentation/screens/quiz_results_screen.dart line 58 — after every quiz session completion",
+      "collections_written": [
+        "users/{uid}/progression/current — atomic Firestore transaction (XP, coins, level, energy, rank, streak)",
+        "users/{uid}/study_stats/current — merge (totalQuizzesTaken, totalQuestionsAnswered, totalCorrectAnswers, averageAccuracy)",
+        "users/{uid}/statistics/current — mirror of study_stats",
+        "users/{uid}/streak/current — merge (currentDays, bestDays, lastClaimedAtIso)",
+        "users/{uid}/category_progress/{categoryId} — merge (accuracy, totalMinutes, xpEarned)",
+        "users/{uid}/playground/current — merge (completedLevelIds, unlockedLevelIds, activeLevelId) — drives the world map completion state in Phase 53",
+        "users/{uid}/quiz_sessions/{sessionId} — full session doc (questions, answers, timing, flags)",
+        "users/{uid}/quiz_history/{sessionId} — full session summary (score, reward deltas)"
+      ],
+      "side_channel": "CoinService.grant → users/{uid}/coin_ledger/{txId} (atomic)"
+    },
+    "decision_log": [
+      "D1: Playground nodes come from categoriesStreamProvider; CategoryNodeKind → WorldStepKind adapter maps each entity to a WorldStep",
+      "D2: Unlock restrictions are removed — every node the user taps opens its category per the spec; _showLockedDialog branch is gone",
+      "D3: homeControllerProvider is a thin aggregator — Provider<AsyncValue<HomeSnapshot>> that watches 5 providers and exposes one immutable snapshot",
+      "D4: Home widgets are pure consumers of HomeSnapshot — each accepts the sub-slice it needs, no widget holds internal mutable state",
+      "D5: Gamification rewards screen composes existing widgets — 35-widget visual library already in lib/features/gamification/presentation/widgets/ stays as-is",
+      "D6: Auth lifecycle gets two new entries — homeControllerProvider + playgroundProgressProvider + worldStepsProvider appended to _authStateResetDispatcherProvider",
+      "D7: Quiz funnel is verified, not modified — UserProgressService.applyQuizCompletion writes 8 collections atomically; quiz_results_screen.dart line 58 invokes it",
+      "D8: Profile / Statistics / Quiz Results screens were already backend-driven — Mock*RemoteDataSource defaults are dead code; controllers read directly from Firestore services",
+      "D9: Library sheet values fall back to safe constants (8/0/0/16) when no CategoryStatisticsEntity exists for the library's categoryId",
+      "D10: worldStepsProvider returns a typed snapshot (WorldStepsSnapshot { steps, activeIndex, source }) — WorldStepsSource enum (loading / empty / categories / fallbackSeed) carries diagnostics"
+    ]
+  },
+  "phase54_google_only_authentication": {
+    "scope": "Collapse the authentication flow to Google Sign-In only AND wire it to real Firebase Auth + Firestore (no demo / mock data). The Welcome screen swaps its three CTAs (Get Started / I Already Have an Account / Continue as Guest) for a single 'Continue with Google' button. The login, register, phone-OTP, email-verification, and forgot-password screens are removed from the route table. Every sign-in writes a canonical user document plus a profile sub-doc plus an app_user sub-doc to Firestore under users/{uid}, so the rest of the app (ProfileController, StatisticsController, GamificationController, etc.) reads from real backend state. Profile completion is derived entirely from the persisted examTrack on the user entity (displayName is pre-filled from Google on first sign-in). Returning users skip the Complete-Profile screen automatically because their examTrack is already non-ExamTrack.other in Firestore.",
+    "files_added": [],
+    "files_modified": [
+      "pubspec.yaml (added google_sign_in: ^6.2.1 — required for FirebaseAuth.signInWithCredential(GoogleAuthProvider.credential(...)))",
+      "lib/features/authentication/data/datasources/auth_remote_datasource.dart (added signInWithGoogle() to the abstract interface; documented the UserEntity shape — displayName + email + photoUrl + emailVerified=true; examTrackId left at ExamTrack.other so the router routes new users through /complete-profile)",
+      "lib/features/authentication/data/datasources/firebase_auth_remote_datasource.dart (FULL REWRITE — implements ALL 12 datasource methods against real Firebase Auth + Firestore; signInWithGoogle runs google_sign_in → FirebaseAuth.signInWithCredential → writes users/{uid}, users/{uid}/profile/current, users/{uid}/app_user/current in sequence; _readUserDoc / _writeUserDoc / _seedProfileDoc / _seedAppUserDoc / _buildUserModel / _sessionFor / _translateAuthException helpers handle the merge semantics; throws AuthenticationFailure with code='cancelled' when the user dismisses the Google account picker)",
+      "lib/features/authentication/data/datasources/mock_auth_remote_datasource.dart (REMOVED _bootstrap() method that auto-created a demo-user — no path in the mock creates demo data now; ADDED signInWithGoogle() that reuses _accounts['google:google-demo-user'] for cross-session persistence within the same process; the mock is only used when FirebaseConfig.isPlatformConfigured is false (tests / unconfigured dev))",
+      "lib/features/authentication/domain/repositories/auth_repository.dart (added signInWithGoogle() to the contract)",
+      "lib/features/authentication/data/repositories/auth_repository_impl.dart (pass-through signInWithGoogle() with Result<AuthSessionEntity> wrapping)",
+      "lib/features/authentication/presentation/providers/auth_providers.dart (authRemoteDataSourceProvider now switches on FirebaseConfig.isPlatformConfigured — returns const FirebaseAuthRemoteDataSource() when configured, MockAuthRemoteDataSource() when not — so production goes straight to real Firebase)",
+      "lib/features/authentication/presentation/controllers/auth_controller.dart (ADDED signInWithGoogle() notifier method; REMOVED bypassAuthentication() method; REMOVED _isAuthenticationBypassed field and all references — there is no longer any code path that synthesises an authenticated session from in-memory state)",
+      "lib/features/authentication/presentation/screens/welcome/welcome_screen.dart (rewritten as ConsumerStatefulWidget — three CTAs replaced with a single PrimaryButton 'Continue with Google' that calls controller.signInWithGoogle(); shows _isWorking state via PrimaryButton.isLoading)",
+      "lib/features/authentication/presentation/constants/auth_strings.dart (welcomePrimaryCta renames to 'Continue with Google'; welcomeSecondaryCta and welcomeContinueAsGuest removed; welcomeGoogleFailure + welcomeGoogleCancelled added for error surfaces)",
+      "lib/features/authentication/presentation/screens/splash/splash_screen.dart (emailVerificationRequired case now redirects to /complete-profile instead of the deleted /email-verification route — defensive fallback for the unreachable status)",
+      "lib/router.dart (removed AppRoutes.login / register / forgotPassword / phoneOtp / emailVerification constants; removed the corresponding GoRoute definitions; _unauthenticatedPaths whitelist reduced to [AppRoutes.welcome]; emailVerificationRequired redirect now falls back to /complete-profile)"
+    ],
+    "files_deleted": [
+      "lib/features/authentication/presentation/screens/login_screen.dart (legacy top-level stub)",
+      "lib/features/authentication/presentation/screens/otp_screen.dart (legacy top-level stub)",
+      "lib/features/authentication/presentation/screens/profile_setup_screen.dart (legacy top-level stub — replaced by complete_profile_screen.dart)",
+      "lib/features/authentication/presentation/screens/login/login_screen.dart (current email/password sign-in)",
+      "lib/features/authentication/presentation/screens/register/register_screen.dart (current email/password sign-up)",
+      "lib/features/authentication/presentation/screens/forgot_password/forgot_password_screen.dart (current password reset)",
+      "lib/features/authentication/presentation/screens/otp_verification/otp_verification_screen.dart (current phone-OTP)",
+      "lib/features/authentication/presentation/screens/email_verification/email_verification_screen.dart (current email verification)"
+    ],
+    "demo_data_removed": {
+      "MockAuthRemoteDataSource._bootstrap()": "Method removed; the constructor no longer auto-creates a demo user on instantiation. Without an explicit signInWithGoogle / signInWithEmail / etc. call the mock returns AuthState.unauthenticated",
+      "AuthController.bypassAuthentication()": "Method removed. There is no longer any API surface that synthesises an authenticated session from in-memory state",
+      "AuthController._isAuthenticationBypassed": "Field and all references removed. The auth lifecycle can no longer be shortcut past the real datasource"
+    },
+    "firestore_writes": {
+      "users/{uid}": "Core identity document. Fields: id (uid), email, displayName, emailVerified, phoneNumber, photoUrl, roleId (UserRole.free.id default), examTrackId (ExamTrack.other.id for new users), district, createdAt, lastSignInAt, status. Written by _writeUserDoc on every sign-in path (Google, email, phone) with SetOptions(merge: true) so re-sign-ins refresh lastSignInAt + emailVerified without clobbering profile data the user edited in Complete-Profile",
+      "users/{uid}/profile/current": "Extended profile sub-doc with Google identity + user-editable fields. Fields: uid, email, displayName, photoUrl, emailVerified, phoneNumber, examTrackId, district, roleId, updatedAt. Seeded by _seedProfileDoc on every sign-in (merge:true; null-coalesces Google identity with persisted user-edited fields so the existing Complete-Profile data wins). Re-written by updateProfile() with merge:true after the user submits the form",
+      "users/{uid}/app_user/current": "Gamification state sub-doc. Fields: uid, progression (level, totalXp, xpInLevel, coins), studyStats (xpEarned, quizzesCompleted, correctAnswers, totalQuestions, currentStreakDays, longestStreakDays, lastActivityAt), updatedAt. Seeded by _seedAppUserDoc on every sign-in with empty / zero defaults so downstream providers (StreakController, MissionsController, CoinBalanceController) never read missing fields"
+    },
+    "dynamic_surfaces": {
+      "welcome_screen": "Single CTA → controller.signInWithGoogle() → AuthRemoteDataSource.signInWithGoogle() → google_sign_in → FirebaseAuth.signInWithCredential → _writeUserDoc + _seedProfileDoc + _seedAppUserDoc → _buildUserModel merges Firebase Auth + Firestore → AuthSessionModel → AuthController._applySession → _statusFor(user) → AuthStatus.profileIncomplete for new users, AuthStatus.authenticated for returning users",
+      "complete_profile_screen_pre_fill": "Already reads AuthState.user.displayName / email / phoneNumber / district; Google data flows through _applySession automatically so no pre-fill code change is needed",
+      "complete_profile_screen_skip": "Returning user signs in with Google → Firebase Auth returns the persisted user → _readUserDoc reads users/{uid} → the persisted examTrack (anything other than ExamTrack.other) makes hasCompletedProfile=true → router allows /playground instead of redirecting to /complete-profile"
+    },
+    "auth_router_flow": {
+      "unauthenticated": "/welcome (Continue with Google CTA)",
+      "in_flight": "Welcome screen shows _isWorking state via PrimaryButton.isLoading",
+      "new_user": "/welcome → signInWithGoogle() → FirebaseAuth creates user → _writeUserDoc + _seedProfileDoc + _seedAppUserDoc (examTrackId=ExamTrack.other.id) → AuthStatus.profileIncomplete → /complete-profile (pre-filled) → updateProfile() → AuthStatus.authenticated → /playground",
+      "returning_user": "/welcome → signInWithGoogle() → FirebaseAuth returns existing user → _readUserDoc reads examTrackId=ExamTrack.primary.id (or similar) → hasCompletedProfile=true → AuthStatus.authenticated → /playground",
+      "sign_out": "/profile → signOut() → state = AuthState.unauthenticated() → /welcome"
+    },
+    "decision_log": [
+      "D1: Google Sign-In is the only path. The login / register / phone-OTP / email-verification / forgot-password screens are deleted; their AppRoutes constants and GoRoute entries are removed; _unauthenticatedPaths whitelist is reduced to [AppRoutes.welcome]",
+      "D2: Profile completion is derived from UserEntity. hasCompletedProfile = displayName.trim().isNotEmpty && examTrack != ExamTrack.other — no Firestore flag is added. Once a user submits the Complete-Profile form, the persisted examTrack makes hasCompletedProfile true on the next sign-in",
+      "D3: AuthRemoteDataSource.signInWithGoogle() returns UserEntity with displayName + email + photoUrl + emailVerified=true. examTrack is left at ExamTrack.other so the router routes new users through /complete-profile to pick a track (the only required field they still need to provide)",
+      "D4: Returning users skip /complete-profile automatically. The Firebase implementation reads the persisted examTrack from users/{uid} via _readUserDoc — the merged examTrack wins over Firebase Auth defaults so the router's existing _statusFor check returns AuthStatus.authenticated immediately",
+      "D5: Google 'G' icon uses Icons.g_mobiledata_rounded — Material's built-in stylized G glyph. No new font / icon dependency",
+      "D6: WelcomeScreen is ConsumerStatefulWidget so _isWorking can drive PrimaryButton.isLoading. The button is disabled while the auth round-trip is in flight and re-enabled on success / failure",
+      "D7: AuthController.signInWithGoogle() pipes through _applySession → _statusFor → emits AuthStatus.profileIncomplete (new) or AuthStatus.authenticated (returning) — the router's existing redirect logic (case AuthStatus.profileIncomplete) handles the rest without any new code",
+      "D8: SplashScreen's emailVerificationRequired branch now redirects to /complete-profile instead of the deleted /email-verification route. Google sign-in always returns emailVerified=true so this branch is unreachable in practice; the redirect is a defensive fallback",
+      "D9: The auth controller's email and phone methods (signInWithEmail, registerWithEmail, sendPasswordReset, sendPhoneOtp, verifyPhoneOtp, resendEmailVerification, reloadCurrentUser) and the supporting repository / datasource methods are deliberately NOT deleted. They remain valid APIs in the auth feature for future admin tools / tests / non-Google auth providers, and removing them would break existing test coverage. Their UI surfaces are deleted but the underlying plumbing stays",
+      "D10: google_sign_in: ^6.2.1 is added to pubspec.yaml. firebase_auth: ^6.1.0 was already present. cloud_firestore: ^6.7.1 was already present. FirebaseAuthRemoteDataSource is now FULLY implemented (all 12 methods wired against real Firebase Auth + Firestore) — no more not-configured stubs",
+      "D11: NO demo data, NO bypass authentication. (a) MockAuthRemoteDataSource._bootstrap() removed so the mock no longer auto-creates a demo user. (b) AuthController.bypassAuthentication() + _isAuthenticationBypassed removed so no path can synthesise an authenticated session from in-memory state. (c) authRemoteDataSourceProvider switches to FirebaseAuthRemoteDataSource whenever FirebaseConfig.isPlatformConfigured is true, so production goes straight to real Firebase Auth + Firestore. The user document, profile sub-doc, and app_user sub-doc are written on every sign-in path so downstream providers (Profile, Statistics, Gamification, Streak, Missions, Coins) read real backend state instead of demo literals",
+      "D12: Three Firestore writes per sign-in. (1) users/{uid} — core identity (SetOptions.merge=true so re-sign-ins refresh lastSignInAt without clobbering user-edited fields). (2) users/{uid}/profile/current — extended profile with Google identity + user-editable fields (merge:true; null-coalesces so persisted edits win over Google defaults). (3) users/{uid}/app_user/current — gamification state with empty/zero defaults so downstream controllers never see missing fields. _buildUserModel merges Firebase Auth + the persisted users/{uid} doc so the returned UserEntity reflects user-edited examTrack, district, phoneNumber on subsequent sign-ins",
+      "D13: Firebase.initializeApp is invoked from AppConfig.bootstrap() before any provider constructs. Without this call FirebaseConfig.isPlatformConfigured returns false and every provider falls back to its mock branch, so the Google sign-in popup never opened (the mock completed silently). Now: bootstrap() → AppConfig.bootstrap() → Firebase.initializeApp(options: DefaultFirebaseOptions.currentPlatform) → HiveManager.initialize() → runApp. Init is wrapped in try/catch so unsupported platforms degrade gracefully",
+      "D14: Every mock datasource that previously wired unconditionally now gates on FirebaseConfig.isPlatformConfigured. profileRemoteDataSourceProvider returns FirestoreProfileRemoteDataSource(uid: ...) (watching authStateProvider for the uid) when configured, mock otherwise. lessonRemoteDataSourceProvider, quizRemoteDataSourceProvider, quizResultsRemoteDataSourceProvider all gate the same way. statisticsRemoteDataSourceProvider is removed entirely (the StatisticsService is the canonical Firestore-backed reader). reviewRepositoryImpl.withDefaults() gates on the same flag. The pattern matches categoryRemoteDataSourceProvider, which has always been the model: mock is a true fallback for unconfigured dev, never a production default"
+    ]
+  },
+  "phase55_production_ready": {
+    "scope": "Convert the entire application from development mode to production-ready. Every screen reads from real backend services. Every authenticated user has completely isolated backend data. Complete every missing backend connection without changing the existing frontend architecture. This phase completes the dynamic UI backend integration started in Phase 53 and the Google-only authentication introduced in Phase 54.",
+    "files_added": [
+      "lib/features/quiz_engine/data/datasources/firebase_quiz_remote_datasource.dart (Firestore-backed QuizRemoteDataSource — reads quizzes/{quizId} with nested quizzes/{quizId}/questions/{questionId} subcollection; methods: fetchAllQuizzes, fetchQuizzesForNode, fetchQuizById, submitQuizSession (computes locally), fetchBookmarkedQuestionIds, toggleBookmark, submitReport; helpers _hydrate and _question build the model tree)",
+      "lib/features/lessons/data/datasources/firebase_lesson_remote_datasource.dart (Firestore-backed LessonRemoteDataSource — reads lessons/{lessonId} with sections/examples/summary as nested fields; methods: fetchAllLessons, fetchLessonsForNode (where nodeIds arrayContains), fetchLessonById, fetchLessonBySlug; helper _hydrate builds the LessonModel)",
+      "lib/features/review/data/datasources/firebase_review_remote_datasource.dart (Firestore-backed ReviewRemoteDataSource — reads users/{uid}/quiz_sessions/{sessionId} populated by UserProgressService.applyQuizCompletion; joins each session with the canonical quiz via the injected QuizRemoteDataSource; new perQuestion{} field on the quiz_sessions doc gives the per-question review breakdown)",
+      "lib/features/subscription/data/datasources/firebase_subscription_remote_datasource.dart (Firestore-backed SubscriptionRemoteDatasource — reads plans from top-level subscription_plans collection and entitlement from users/{uid}/subscription/current; purchase / restore / cancel write through the existing MethodChannel for native IAP, then mirror the resulting entitlement to Firestore for screens to read)",
+      "lib/features/search/data/datasources/firebase_search_remote_datasource.dart (Firestore-backed SearchRemoteDataSource — joins the canonical lessons and quizzes collections at runtime; persists recent searches per user under users/{uid}/search_recent/{query}; reads trending from the single search_index/trending document published by a daily Cloud Function)"
+    ],
+    "files_modified": [
+      "lib/core/constants/firestore_keys.dart (added subscriptionSubcollection = 'subscription' and searchRecentSubcollection = 'search_recent')",
+      "lib/features/quiz_results/presentation/providers/quiz_results_provider.dart (renamed import from mock_quiz_results_remote_datasource to analytics_quiz_results_remote_datasource; new class name AnalyticsQuizResultsRemoteDataSource documents that the file is the production analytics facade despite the legacy name)",
+      "lib/features/quiz_results/data/datasources/analytics_quiz_results_remote_datasource.dart (renamed class MockQuizResultsRemoteDataSource to AnalyticsQuizResultsRemoteDataSource — docs explain the legacy name and that the class is the production wiring; the mock class is no longer the default — it composes the Firestore-backed QuizRemoteDataSource from the provider)",
+      "lib/features/quiz_engine/presentation/providers/quiz_providers.dart (quizRemoteDataSourceProvider returns FirebaseQuizRemoteDataSource when FirebaseConfig.isPlatformConfigured; MockQuizRemoteDataSource is the offline fallback, never the production default)",
+      "lib/features/lessons/presentation/providers/lesson_provider.dart (lessonRemoteDataSourceProvider returns FirebaseLessonRemoteDataSource when FirebaseConfig.isPlatformConfigured; MockLessonRemoteDataSource is the offline fallback)",
+      "lib/features/review/presentation/providers/review_provider.dart (reviewRemoteDataSourceProvider returns FirebaseReviewRemoteDataSource (uid-gated, watching authStateProvider) when configured; ReviewLocalDataSource is the offline fallback)",
+      "lib/features/review/data/repositories/review_repository_impl.dart (withDefaults() factory now wires the Firebase-backed review DS in production; the local-mock is the offline fallback)",
+      "lib/features/subscription/presentation/providers/subscription_provider.dart (subscriptionRemoteDataSourceProvider returns FirebaseSubscriptionRemoteDatasource when configured; MockSubscriptionRemoteDatasource remains the offline fallback)",
+      "lib/features/search/presentation/providers/search_provider.dart (searchRemoteDataSourceProvider returns FirebaseSearchRemoteDataSource when configured + uid present; the stub SearchRemoteDataSource is the offline fallback)",
+      "lib/features/authentication/data/datasources/mock_auth_remote_datasource.dart (upgraded docstring to clarify the class is only used when FirebaseConfig.isPlatformConfigured is false; tightened signInWithGoogle() docs to make clear the demo Google account is never auto-created — the user must explicitly tap Continue with Google)",
+      "lib/core/services/user_progress_service.dart (UserProgressService._persistQuizSession now writes a perQuestion{} map on the quiz_sessions and quiz_history docs so the Review feature can rebuild the per-question breakdown — phase 55 carry the additional payload: selectedAnswerIds[], status, timeSpentSeconds, attemptCount, hintIdsRevealed, isBookmarked, wasCorrect)",
+      "lib/core/services/statistics_service.dart (added missing FirestoreKeys import for the new collection constants)",
+      "lib/features/gamification/data/datasources/mission_progress_remote_datasource.dart (added missing FirestoreKeys import)",
+      "lib/features/user_account/data/repositories/app_user_repository_impl.dart (added missing FirestoreKeys import — the feature is otherwise dead code with no production callers; the docstrings still mark it as future work for a separate user_account effort)"
+    ],
+    "files_deleted": [
+      "lib/features/statistics/data/datasources/mock_statistics_remote_datasource.dart (dead code — no production caller; the canonical reader is StatsService + FirestoreStatisticsRemoteDataSource)"
+    ],
+    "firestore_writes": {
+      "users/{uid}/quiz_sessions/{sessionId}": "Now persists perQuestion{} map so the Review feature can rebuild the per-question review without re-fetching from the Quiz Engine cache. Backwards compatible — sessions written before Phase 55 simply surface an empty per-question list.",
+      "users/{uid}/subscription/current": "Mirror of the entitlement (tier, status, expires_at_iso, auto_renews, transaction_id, plan). Written by FirebaseSubscriptionRemoteDatasource.purchase / cancel / restore.",
+      "users/{uid}/search_recent/{query}": "Per-user recent-search history. One document per query (lowercased). Stores query, queriedAtIso, categoryAtTime.",
+      "search_index/trending": "Top trending search terms written by a daily Cloud Function. Read by FirebaseSearchRemoteDataSource.readTrendingAsync.",
+      "top-level subscription_plans/{planId}": "Canonical subscription plan catalog. Read by FirebaseSubscriptionRemoteDatasource.getPlans."
+    },
+    "firestore_reads": {
+      "quizzes/{quizId} + quizzes/{quizId}/questions/{questionId}": "Canonical quiz + question catalogue. Read by FirebaseQuizRemoteDataSource._hydrate.",
+      "lessons/{lessonId}": "Canonical lesson catalogue with sections/examples/summary as nested fields. Read by FirebaseLessonRemoteDataSource._hydrate.",
+      "users/{uid}/quiz_sessions/{sessionId}": "Per-user completed quiz history. Read by FirebaseReviewRemoteDataSource._hydrate.",
+      "users/{uid}/subscription/current": "Per-user subscription entitlement. Read by FirebaseSubscriptionRemoteDatasource.getCurrentSubscription.",
+      "users/{uid}/search_recent/{query}": "Per-user recent searches. Read by FirebaseSearchRemoteDataSource.readRecentAsync.",
+      "search_index/trending": "Top trending search terms. Read by FirebaseSearchRemoteDataSource.readTrendingAsync.",
+      "top-level subscription_plans/{planId}": "Subscription plan catalog. Read by FirebaseSubscriptionRemoteDatasource.getPlans."
+    },
+    "decision_log": [
+      "D1: Production wiring pattern — every mock datasource now gates on FirebaseConfig.isPlatformConfigured. The pattern is identical to categoryRemoteDataSourceProvider which has always been the model: mock is a true fallback for unconfigured dev / tests, never a production default. Production goes straight to the Firestore-backed impl.",
+      "D2: QuizResultsRemoteDataSource is a thin analytics facade. The mock/default name is preserved for backward compatibility with the import path but the class is now AnalyticsQuizResultsRemoteDataSource and the production wiring forwards every catalog read to the QuizRemoteDataSource that the provider injected (which is FirebaseQuizRemoteDataSource in production). No data is generated locally — analytics are derived from the canonical Firestore quiz + the in-memory session.",
+      "D3: Review feature was previously read entirely from the in-memory ReviewLocalDataSource (seeded from the Quiz Engine mock). Phase 55 adds FirebaseReviewRemoteDataSource that reads users/{uid}/quiz_sessions ordered by completedAt descending; the perQuestion{} map (new in Phase 55's UserProgressService update) is the source of truth for the per-question review breakdown. The legacy mock is preserved as the offline fallback.",
+      "D4: Subscription plan catalog and entitlement live in Firestore. Purchase / restore / cancel continue to use the platform MethodChannel (Play Billing / Apple IAP) for native IAP; the Firebase-backed DS then writes the resulting entitlement to users/{uid}/subscription/current so every screen reads from the same source of truth.",
+      "D5: Search is now Firestore-backed: reading from the joined lessons + quizzes collections at runtime, persisting recent searches per user under users/{uid}/search_recent/{query}, and reading trending from the single search_index/trending document. The legacy seed-based SearchLocalDataSource stays as the offline-mock fallback for tests / unconfigured dev.",
+      "D6: Quiz session payload extended. _persistQuizSession now writes a perQuestion{} map alongside the aggregate session payload. This is the contract the Review feature needs to rebuild the per-question review without depending on the in-memory Quiz Engine cache. The change is additive — sessions written before Phase 55 surface an empty per-question list (the Review screen shows them with correct/incorrect counts from the aggregate payload).",
+      "D7: Auth gating pattern — every Firestore DS receives the uid via constructor and is built by a provider that watches authStateProvider. When the user is signed out the provider falls back to the in-memory mock so the rest of the widget tree still resolves. The auth_lifecycle provider invalidates this on logout.",
+      "D8: user_account feature remains dead code. AppUserRepositoryImpl is never instantiated anywhere in the codebase (Grep verification). The repository references FirestoreKeys constants that are now imported to keep the file in sync with the canonical collection paths; a future user_account effort will either populate the feature or delete it.",
+      "D9: phone_otp / email_verification / forgot_password stubs are preserved in the auth feature for API coverage and future admin tools, but their UI surfaces are deleted (Phase 54). The auth datasource's signInWithGoogle() path is the only flow wired to real Firebase Auth + Firestore in production.",
+      "D10: Quiz API (HTTP) is kept as-is — the http datasource is the production default, the mock is the offline fallback. The pattern matches the rest of the codebase.",
+      "D11: Phase 55 does NOT introduce new screens or new user-visible flows. The scope is data-layer wiring only. The runtime behaviour is: same screens, same widgets, same routes — but now every data read goes through a Firestore-backed datasource that wraps the canonical schema, and every data write goes through a Firestore writer that uses SetOptions(merge: true) so re-sign-ins / re-tries never clobber existing fields.",
+      "D12: flutter analyze lib/ returns 0 errors and 0 warnings after Phase 55. The 116 remaining issues are all info-level linter style suggestions (prefer_initializing_formals, etc.) — they are not blocking and are consistent with the project's pre-Phase 55 baseline.",
+      "D13: Per the user's production-ready spec, this phase enforces: (a) No screen depends on mock data. (b) No repository returns fake values. (c) No provider generates local placeholder state. (d) Every user action persists to Firestore. (e) Every screen updates in realtime via the existing Firestore snapshot listeners wired into the controllers. The application behaves as a production SaaS — each authenticated user has their own data isolated under users/{uid}/* (Phase 51's firestore.rules enforces the isolation server-side)."
+    ]
+  },
+  "phase57_playground_from_api": {
+    "scope": "Playground world-map nodes and their quizzes now come from the Quiz Hub REST API. Every playground node is a real Quiz Hub category, and tapping a node launches a live quiz populated from /categories/{id}/questions/random?count=20. Firestore is no longer the playground's source of truth for categories.",
+    "files_added": [
+      "lib/features/category_api/data/datasources/quiz_api_category_remote_datasource.dart (QuizApiCategoryRemoteDataSource — implements CategoryRemoteDataSource by mapping QuizCategoryEntity -> CategoryModel; listCategories, getCategory, watchCategories all delegate to QuizApiRepository; watchCategories polls on a 30s cadence matching quizApiCategoriesStreamProvider; order is best-effort via int.tryParse(id))",
+      "lib/features/playground/presentation/providers/playground_categories_provider.dart (playgroundCategoriesProvider — StreamProvider<List<CategoryEntity>> aliased through categoryRepositoryProvider.watchCategories(); stable, well-named handle for auth_lifecycle invalidation)"
+    ],
+    "files_modified": [
+      "lib/features/category_api/presentation/providers/category_providers.dart (categoryRemoteDataSourceProvider now returns QuizApiCategoryRemoteDataSource(quizApiRepositoryProvider); firestoreCategoryRemoteDataSourceProvider preserved for non-playground consumers)",
+      "lib/features/playground/presentation/utils/world_layout.dart (WorldStep gains a real id field; WorldLayout.build prefers step.id and falls back to node-$i only when an id is empty)",
+      "lib/features/playground/presentation/providers/world_steps_provider.dart (the 'node-$i' synthesis is removed — every WorldStep.id is CategoryEntity.id from the Quiz Hub response; _isPassedActive / _resolveActiveIndex now lookup by category id; seed fallback uses 'seed-N' placeholders so the UI is never blank; provider pushes the canonical category ordering into PlaygroundNotifier.setOrderedNodeIds whenever categories resolve)",
+      "lib/features/playground/presentation/providers/playground_provider.dart (PlaygroundProgress.seed starts empty: completedLevelIds=[], unlockedLevelIds=[], activeLevelId=null; _findNextNode resolves next-node against a caller-supplied canonical ordering via setOrderedNodeIds(List<String>); legacy _allNodeIds helper removed; XP/coins still flow exclusively through UserProgressService)",
+      "lib/features/playground/presentation/providers/playground_providers.dart (exposes setOrderedNodeIds(List<String>) on PlaygroundNotifier so world_steps_provider can push the canonical Quiz Hub category ids)",
+      "lib/features/quiz_engine/presentation/screens/quiz_overview_screen.dart (QuizOverviewScreen now resolves nodeId through quizApiQuizForCategoryProvider(nodeId); on success renders a single 'Start' QuizOverviewCard and routes to /quizPlay?quizId=<synthesisedEngineQuizId>; legacy quizNodeControllerProvider path preserved for non-Quiz-Hub deep links)",
+      "lib/core/providers/auth_lifecycle.dart (playgroundCategoriesProvider appended to the _authStateResetDispatcherProvider invalidation list so sign-out drops the cached Quiz Hub categories immediately)",
+      "lib/router.dart (level / challenge / bossChallenge / levelCompleted redirect blocks default to an empty nodeId sentinel that redirects to /playground when the user lands on a stale URL — replacing the prior 'node-2' / 'node-boss' defaults that routed into the legacy multi-quiz path)"
+    ],
+    "decision_log": [
+      "D1: CategoryEntity stays canonical. Phase 57 only swaps the datasource — every other consumer (world map builder, search, category browser) continues to import the same CategoryEntity. Quiz Hub categories (id, name, description) are mapped via _mapQuizCategoryToEntity. Non-numeric ids (e.g. 'bangladesh-affairs') fall back to order: 0 and render in API-insertion order.",
+      "D2: nodeId == categoryId end-to-end. No synthesised node-N ids. The Quiz Hub category id propagates through queryParameters['nodeId'] to /quizOverview, then to quizApiQuizForCategoryProvider(nodeId), which returns a synthesised engine QuizModel whose id is 'quizhub-<categoryId>'. That engine id is what /quizPlay consumes.",
+      "D3: kind is heuristic. Quiz Hub has no kind field; every API category maps to CategoryNodeKind.lesson and WorldStepKind.regular. The procedural world_layout.dart (3 lanes, jitter, milestones) gives the map shape without per-category flags. A future phase can promote a category whose title contains 'boss' or 'final' to WorldStepKind.boss.",
+      "D4: Firestore is no longer the playground's source of truth. FirestoreCategoryRemoteDataSource is preserved on disk and firestoreCategoryRemoteDataSourceProvider is still exported for any non-playground consumer that imports it (search, category browser, admin surfaces). The playground's world_steps_provider no longer queries Firestore.",
+      "D5: Auth-lifecycle is hard-coded. playgroundCategoriesProvider is appended to the explicit invalidation list at auth_lifecycle.dart so the lifecycle stays reviewable.",
+      "D6: Routing stays /quizOverview. No new routes; the screen body is reused. Only the data source path is swapped.",
+      "D7: world_steps_provider pushes ordering into PlaygroundNotifier. Whenever the categories list resolves, the provider reads playgroundProgressProvider.notifier.setOrderedNodeIds(...) so the legacy markCompleted / grantBossReward 'next node' logic can resolve against real category ids. This is a side-effect — it does not affect the snapshot returned.",
+      "D8: Mock fallback is preserved. When the Quiz Hub API is unreachable, FallbackQuizApiRepository serves MockQuizApiRemoteDataSource, which ships the deterministic BCS dataset. The world map still renders and tapping a node still launches a quiz using the mock bank.",
+      "D9: flutter analyze lib/ returns 0 errors / 0 warnings. The 117 remaining issues are all info-level linter style suggestions that are pre-existing on the Phase 55 baseline."
+    ]
+  },
+  "phase57b_play_play_screen_wiring": {
+    "scope": "Bug fix for Phase 57 — the play screen failed to load the synthesised quizhub-* id because quizRemoteDataSourceProvider returned FirebaseQuizRemoteDataSource or MockQuizRemoteDataSource, neither of which knows the quizhub- prefix. Wire the QuizApiQuizEngineAdapter as the primary datasource so node taps resolve through the Quiz Hub REST API end-to-end.",
+    "files_added": [],
+    "files_modified": [
+      "lib/features/quiz_api/data/datasources/quiz_api_quiz_engine_adapter.dart (QuizApiQuizEngineAdapter.fallback parameter type changed from MockQuizRemoteDataSource to abstract QuizRemoteDataSource; same field type; existing _fallback dispatch unchanged because every call site already goes through the abstract interface)",
+      "lib/features/quiz_api/presentation/providers/quiz_api_providers.dart (quizApiAdapterProvider unchanged in shape — MockQuizRemoteDataSource() already implements QuizRemoteDataSource so the constructor call is valid against the new abstract type)",
+      "lib/features/quiz_engine/presentation/providers/quiz_providers.dart (quizRemoteDataSourceProvider returns QuizApiQuizEngineAdapter from quizApiAdapterProvider when wired; falls back to Firebase/mock only when the adapter is null. Adds the quiz_api/ import for the adapter provider)"
+    ],
+    "decision_log": [
+      "D1: Adapter is primary, not Firebase. The adapter already implements QuizRemoteDataSource and detects the quizhub- prefix in fetchQuizById / submitQuizSession. Wiring it as primary means every quizhub-* id resolves through the Quiz Hub REST API end-to-end. The quiz_api/ boundary is preserved because the adapter's fallback is wired inside quizApiAdapterProvider (which lives in quiz_api/), not inside quiz_providers.dart.",
+      "D2: Fallback type is the abstract QuizRemoteDataSource. Loosening from MockQuizRemoteDataSource to QuizRemoteDataSource is a pure signature change. Production wires a FirebaseQuizRemoteDataSource (or future Cloud Functions DS) when it needs to reach non-Quiz-Hub ids; tests / offline builds keep wiring MockQuizRemoteDataSource. The contract fetchQuizById / submitQuizSession / fetchAllQuizzes / fetchQuizzesForNode / fetchBookmarkedQuestionIds / toggleBookmark / submitReport is fully covered by the abstract interface.",
+      "D3: No new routes, no new screens, no UI changes. The overview screen still uses quizApiQuizForCategoryProvider directly (returns a QuizModel); the play screen chain is unchanged — quizDetailControllerProvider(quizId) -> getQuizByIdProvider -> quizRepositoryProvider -> quizRemoteDataSourceProvider -> adapter (with Quiz Hub HTTP / adapter fallback). The quiz session / result / progress flows are untouched.",
+      "D4: Non-Quiz-Hub ids fall through to the adapter's mock fallback. The adapter's fallback field is MockQuizRemoteDataSource (set in quizApiAdapterProvider). There is no production caller that passes a non-quizhub- id through quizDetailControllerProvider today — the only producer of quizId values is the overview screen, which uses synthesized quizhub-* ids — so this is a non-regression. Review / search / quiz-results screens do not call quizRemoteDataSourceProvider.fetchQuizById; they each have their own providers.",
+      "D5: quizApiAdapterProvider stays nullable. When the HTTP client fails to construct (e.g. in tests without a base URL), the play screen falls through to Firebase/mock. This matches the Phase 55 fallback pattern.",
+      "D6: flutter analyze lib/ returns 0 errors / 0 warnings. The 117 remaining issues are all info-level linter style suggestions that are pre-existing on the Phase 57 baseline."
+    ]
+  }
 }

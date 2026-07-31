@@ -2,7 +2,11 @@ import 'dart:async';
 
 // ignore_for_file: prefer_initializing_formals
 
+import 'package:flutter_riverpod/flutter_riverpod.dart';
+
 import '../../../../core/errors/failures.dart';
+import '../../../../core/security/auth_precondition.dart';
+import '../../../../core/services/level_curve.dart';
 import '../../../../shared/enums/exam_track.dart';
 import '../../../../shared/typedefs/result.dart';
 import '../../domain/entities/user_profile.dart';
@@ -13,18 +17,25 @@ import '../models/user_profile_model.dart';
 
 /// Default repository implementation. Composes a remote source
 /// (Firestore in production, mock in dev) with a local cache.
+///
+/// Phase 51 — every mutating method enforces an authenticated
+/// precondition via [AuthGuard] before delegating to the remote data
+/// source.
 class ProfileRepositoryImpl implements ProfileRepository {
   ProfileRepositoryImpl({
     required ProfileRemoteDataSource remote,
     required ProfileLocalDataSource local,
     String activeUserId = 'demo-user',
+    Ref? ref,
   })  : _remote = remote,
         _local = local,
-        _activeUserId = activeUserId;
+        _activeUserId = activeUserId,
+        _guard = ref == null ? null : AuthGuard(ref);
 
   final ProfileRemoteDataSource _remote;
   final ProfileLocalDataSource _local;
   final String _activeUserId;
+  final AuthGuard? _guard;
   StreamSubscription<UserProfileModel>? _watchSubscription;
 
   @override
@@ -75,6 +86,7 @@ class ProfileRepositoryImpl implements ProfileRepository {
   @override
   Future<Result<UserProfile>> updateProfile(ProfileUpdateEntity update) async {
     try {
+      _guard?.assertAuthenticated();
       final UserProfileModel model = await _remote.updateProfile(
         userId: _activeUserId,
         update: update,
@@ -91,6 +103,7 @@ class ProfileRepositoryImpl implements ProfileRepository {
   @override
   Future<Result<UserProfile>> uploadAvatar({required String imagePath}) async {
     try {
+      _guard?.assertAuthenticated();
       final UserProfileModel model = await _remote.uploadAvatar(
         userId: _activeUserId,
         imagePath: imagePath,
@@ -107,6 +120,7 @@ class ProfileRepositoryImpl implements ProfileRepository {
   @override
   Future<Result<void>> deleteAccount() async {
     try {
+      _guard?.assertAuthenticated();
       await _remote.deleteProfile(userId: _activeUserId);
       await _local.clear();
       return Result.success(null);
@@ -152,7 +166,7 @@ class ProfileRepositoryImpl implements ProfileRepository {
         totalXp: 0,
         level: 1,
         xpInLevel: 0,
-        xpForNextLevel: 100,
+        xpForNextLevel: LevelCurve.defaultCurve.xpRequiredForLevel(1),
         coins: 0,
         energy: 5,
         maxEnergy: 5,
@@ -160,6 +174,11 @@ class ProfileRepositoryImpl implements ProfileRepository {
         rank: ProfileRank.bronze,
         streakDays: 0,
         isStreakAtRisk: false,
+        previousLevelThreshold: 0,
+        nextLevelThreshold: LevelCurve.defaultCurve.xpRequiredForLevel(1),
+        totalLevelUpsCompleted: 0,
+        lastLevelUpAt: null,
+        pendingLevelRewards: const <PendingLevelReward>[],
       ),
       studyStats: StudyStatsEntity(
         totalQuizzesTaken: 0,

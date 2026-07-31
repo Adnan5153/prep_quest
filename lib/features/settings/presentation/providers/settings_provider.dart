@@ -1,5 +1,7 @@
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
+import '../../../../core/services/settings_service.dart';
+import '../../../notifications/presentation/providers/notification_provider.dart';
 import '../../data/datasources/settings_local_datasource.dart';
 import '../../data/repositories/settings_repository_impl.dart';
 import '../../domain/entities/settings_entity.dart';
@@ -27,7 +29,12 @@ final Provider<SettingsRepository> settingsRepositoryProvider =
     Provider<SettingsRepository>((Ref ref) {
   final SettingsLocalDataSource local =
       ref.watch(settingsLocalDataSourceProvider);
-  return SettingsRepositoryImpl(local);
+  return SettingsRepositoryImpl(
+    local,
+    settingsService: ref.watch(settingsServiceProvider),
+    uidProvider: () => ref.read(notificationCurrentUidProvider),
+    ref: ref,
+  );
 });
 
 final Provider<GetSettings> getSettingsUseCaseProvider =

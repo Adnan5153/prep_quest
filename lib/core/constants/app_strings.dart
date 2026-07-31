@@ -131,6 +131,23 @@ class AppStrings {
   static const String english = 'English';
   static const String mathematics = 'Mathematics';
   static const String premium = 'Premium';
+  static const String free = 'Free';
+  static const String signInPrompt = 'Sign in to start';
+  static const String homeXpCardTitle = 'Experience';
+  static const String homeStreakCardTitle = 'Daily streak';
+  static const String homeDailyGoalTitle = 'Daily missions';
+  static const String homeContinueLearningTitle = 'Continue learning';
+  static const String homeContinueLearningCta = 'Open category';
+  static const String homeQuickActionQuiz = 'Daily quiz';
+  static const String homeQuickActionLessons = 'Lessons';
+  static const String homeQuickActionBookmarks = 'Bookmarks';
+  static const String homeQuickActionNotes = 'Notes';
+  static const String homeRecentActivityTitle = 'Recent activity';
+  static const String homeRecentActivityEmpty = 'No activity yet';
+  static const String homePremiumBannerTitle = 'Unlock Prep Quest Premium';
+  static const String homePremiumBannerSubtitle =
+      'Boss challenges, advanced analytics, and unlimited mocks.';
+  static const String homePremiumBannerCta = 'Upgrade';
   static const String section = 'Section';
   static const String or = 'OR';
 

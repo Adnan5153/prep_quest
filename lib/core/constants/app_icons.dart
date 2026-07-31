@@ -1,5 +1,7 @@
 import 'package:flutter/material.dart';
 
+import '../../features/subscription/domain/entities/subscription_entity.dart';
+
 /// Central registry of icon data used across the application.
 ///
 /// Widget code must reference these constants instead of building raw
@@ -106,4 +108,40 @@ class AppIcons {
   static const IconData noteGrid = Icons.grid_view_rounded;
   static const IconData noteClock = Icons.schedule_rounded;
   static const IconData noteEmpty = Icons.note_add_outlined;
+
+  // ----- Subscription feature icons -----
+  static const IconData subscriptionAutoAwesome = Icons.auto_awesome_outlined;
+  static const IconData subscriptionLightbulb = Icons.lightbulb_outline_rounded;
+  static const IconData subscriptionStyle = Icons.style_outlined;
+  static const IconData subscriptionEventNote = Icons.event_note_outlined;
+  static const IconData subscriptionAssignment = Icons.assignment_rounded;
+  static const IconData subscriptionBarChart = Icons.bar_chart_rounded;
+  static const IconData subscriptionAssessment = Icons.assessment_outlined;
+  static const IconData subscriptionBookmark = Icons.bookmark_outline_rounded;
+  static const IconData subscriptionCloudDownload =
+      Icons.cloud_download_outlined;
+  static const IconData subscriptionBolt = Icons.bolt_outlined;
+  static const IconData subscriptionMenuBook = Icons.menu_book_rounded;
+  static const IconData subscriptionBlock = Icons.block_outlined;
+  static const IconData subscriptionFallback = Icons.help_outline_rounded;
+
+  /// Const lookup table that maps a [SubscriptionFeatureIcon] enum to its
+  /// const [IconData]. Using a `Map<Enum, IconData>` keeps every reference
+  /// statically known so Flutter's icon tree-shaker can strip unused
+  /// glyphs from the bundled font.
+  static const Map<SubscriptionFeatureIcon, IconData> subscriptionFeatureIcons =
+      <SubscriptionFeatureIcon, IconData>{
+        SubscriptionFeatureIcon.unlimitedAi: subscriptionAutoAwesome,
+        SubscriptionFeatureIcon.hints: subscriptionLightbulb,
+        SubscriptionFeatureIcon.flashcards: subscriptionStyle,
+        SubscriptionFeatureIcon.studyPlans: subscriptionEventNote,
+        SubscriptionFeatureIcon.mockTests: subscriptionAssignment,
+        SubscriptionFeatureIcon.advancedAnalytics: subscriptionBarChart,
+        SubscriptionFeatureIcon.weaknessReports: subscriptionAssessment,
+        SubscriptionFeatureIcon.unlimitedBookmarks: subscriptionBookmark,
+        SubscriptionFeatureIcon.offlineDownloads: subscriptionCloudDownload,
+        SubscriptionFeatureIcon.priorityContent: subscriptionBolt,
+        SubscriptionFeatureIcon.exclusiveStudyMaterials: subscriptionMenuBook,
+        SubscriptionFeatureIcon.adFree: subscriptionBlock,
+      };
 }

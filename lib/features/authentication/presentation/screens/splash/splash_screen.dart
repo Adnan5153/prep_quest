@@ -39,7 +39,11 @@ class _SplashScreenState extends ConsumerState<SplashScreen> {
         case AuthStatus.profileIncomplete:
           context.go(AppRoutes.completeProfile);
         case AuthStatus.emailVerificationRequired:
-          context.go(AppRoutes.emailVerification);
+          // Google sign-in always returns a verified email, so this
+          // branch is unreachable in practice. Treat it the same as
+          // profile-incomplete since the email-verification screen
+          // has been removed.
+          context.go(AppRoutes.completeProfile);
         case AuthStatus.authenticated:
           context.go(AppRoutes.playground);
       }

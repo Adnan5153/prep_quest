@@ -4,7 +4,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../../../../shared/typedefs/result.dart';
 import '../../../quiz_engine/domain/entities/quiz_session_entity.dart';
 import '../../../quiz_engine/presentation/providers/quiz_providers.dart';
-import '../../data/datasources/mock_quiz_results_remote_datasource.dart';
+import '../../data/datasources/analytics_quiz_results_remote_datasource.dart';
 import '../../data/datasources/quiz_results_remote_datasource.dart';
 import '../../data/repositories/quiz_results_repository_impl.dart';
 import '../../domain/entities/quiz_performance_entity.dart';
@@ -13,9 +13,17 @@ import '../../domain/usecases/calculate_rewards.dart';
 import '../../domain/usecases/get_quiz_performance.dart';
 import '../../domain/usecases/retry_quiz.dart';
 
+/// Quiz results remote data source — analytics derivation facade.
+///
+/// Reads the canonical quiz definition via [quizRemoteDataSourceProvider]
+/// (which now returns [FirebaseQuizRemoteDataSource] when Firebase is
+/// configured). The persistence path goes through
+/// `UserProgressService.applyQuizCompletion` (Firestore). This datasource
+/// is a thin analytics facade; the persistence layer writes the
+/// canonical session/result docs.
 final quizResultsRemoteDataSourceProvider =
     Provider<QuizResultsRemoteDataSource>((ref) {
-  return MockQuizResultsRemoteDataSource(
+  return AnalyticsQuizResultsRemoteDataSource(
     ref.watch(quizRemoteDataSourceProvider),
   );
 });

@@ -1,7 +1,11 @@
 import 'package:flutter/foundation.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
+import '../../../../core/config/firebase_config.dart';
 import '../../../../shared/typedefs/result.dart';
+import '../../../quiz_api/data/datasources/quiz_api_quiz_engine_adapter.dart';
+import '../../../quiz_api/presentation/providers/quiz_api_providers.dart';
+import '../../data/datasources/firebase_quiz_remote_datasource.dart';
 import '../../data/datasources/mock_quiz_remote_datasource.dart';
 import '../../data/datasources/quiz_remote_datasource.dart';
 import '../../data/repositories/quiz_repository_impl.dart';
@@ -13,12 +17,28 @@ import '../../domain/usecases/report_question.dart';
 import '../../domain/usecases/submit_quiz_session.dart';
 import '../../domain/usecases/toggle_question_bookmark.dart';
 
+/// Quiz remote data source.
+///
+/// Phase 57b — the Quiz Hub adapter is the primary datasource. The
+/// adapter handles `quizhub-*` ids by routing through the live Quiz
+/// Hub REST API (categories + questions) and delegates everything
+/// else to its wired fallback. When the adapter itself is wired
+/// (production), it returns the synthesised quiz for the tapped
+/// playground node. When the HTTP client can't build (offline /
+/// unit tests), the adapter is null and we fall through to the
+/// Firestore-backed DS in production or the mock in offline builds.
 final quizRemoteDataSourceProvider = Provider<QuizRemoteDataSource>((ref) {
+  final QuizApiQuizEngineAdapter? adapter = ref.watch(quizApiAdapterProvider);
+  if (adapter != null) return adapter;
+
+  if (FirebaseConfig.isPlatformConfigured) {
+    return FirebaseQuizRemoteDataSource();
+  }
   return MockQuizRemoteDataSource();
 });
 
 final quizRepositoryProvider = Provider<QuizRepository>((ref) {
-  return QuizRepositoryImpl(ref.watch(quizRemoteDataSourceProvider));
+  return QuizRepositoryImpl(ref.watch(quizRemoteDataSourceProvider), ref: ref);
 });
 
 final getQuizzesProvider = Provider<GetQuizzes>((ref) {
@@ -100,10 +120,7 @@ class QuizListController extends StateNotifier<QuizListState> {
         );
       },
       onSuccess: (quizzes) {
-        state = QuizListState(
-          status: QuizLoadStatus.ready,
-          quizzes: quizzes,
-        );
+        state = QuizListState(status: QuizLoadStatus.ready, quizzes: quizzes);
       },
     );
   }
@@ -158,9 +175,9 @@ class QuizNodeController extends StateNotifier<QuizNodeState> {
 
   Future<void> load(String nodeId) async {
     if (state.status == QuizLoadStatus.loading) return;
-    state = QuizNodeState.initialFor(nodeId).copyWith(
-      status: QuizLoadStatus.loading,
-    );
+    state = QuizNodeState.initialFor(
+      nodeId,
+    ).copyWith(status: QuizLoadStatus.loading);
     final Result<List<QuizEntity>> result = await _useCase(nodeId);
     result.fold(
       onFailure: (failure) {
@@ -180,13 +197,13 @@ class QuizNodeController extends StateNotifier<QuizNodeState> {
   }
 }
 
-final quizNodeControllerProvider = StateNotifierProvider.family<
-  QuizNodeController,
-  QuizNodeState,
-  String
->((ref, nodeId) {
-  return QuizNodeController(ref.watch(getQuizzesForNodeProvider), nodeId);
-});
+final quizNodeControllerProvider =
+    StateNotifierProvider.family<QuizNodeController, QuizNodeState, String>((
+      ref,
+      nodeId,
+    ) {
+      return QuizNodeController(ref.watch(getQuizzesForNodeProvider), nodeId);
+    });
 
 @immutable
 class QuizDetailState {
@@ -218,10 +235,7 @@ class QuizDetailState {
 
 class QuizDetailController extends StateNotifier<QuizDetailState> {
   QuizDetailController(this._useCase, String quizId)
-    : super(QuizDetailState(
-        quizId: quizId,
-        status: QuizLoadStatus.initial,
-      ));
+    : super(QuizDetailState(quizId: quizId, status: QuizLoadStatus.initial));
 
   final GetQuizById _useCase;
 
@@ -254,10 +268,9 @@ class QuizDetailController extends StateNotifier<QuizDetailState> {
   }
 }
 
-final quizDetailControllerProvider = StateNotifierProvider.family<
-  QuizDetailController,
-  QuizDetailState,
-  String
->((ref, quizId) {
-  return QuizDetailController(ref.watch(getQuizByIdProvider), quizId);
-});
+final quizDetailControllerProvider =
+    StateNotifierProvider.family<QuizDetailController, QuizDetailState, String>(
+      (ref, quizId) {
+        return QuizDetailController(ref.watch(getQuizByIdProvider), quizId);
+      },
+    );

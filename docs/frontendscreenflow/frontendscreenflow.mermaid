@@ -1,0 +1,318 @@
+flowchart TD
+
+%% =========================================================
+%% Prep Quest - Complete Screen Flow
+%% Reflects the actual route table registered in lib/router.dart
+%% and the AuthStatus enum consumed by GoRouter's redirect logic.
+%% =========================================================
+
+START([App Launch])
+
+%% =========================================================
+%% Bootstrap & Auth Routing
+%% =========================================================
+
+START --> Splash["SplashScreen<br/>/splash"]
+Splash --> AuthCheck{"AuthRouterBridge<br/>AuthStatus"}
+
+AuthCheck -->|"unknown"| Splash
+AuthCheck -->|"unauthenticated"| Welcome
+AuthCheck -->|"authenticated"| Playground
+AuthCheck -->|"profileIncomplete"| AboutYourself
+
+%% =========================================================
+%% Authentication Flow (Phase 54 — Google-only)
+%% =========================================================
+
+subgraph Authentication
+
+Welcome["WelcomeScreen<br/>/welcome<br/>(Continue with Google)"]
+Welcome --> GoogleSignIn["Google Sign-In<br/>signInWithGoogle()<br/>(google_sign_in + FirebaseAuth)"]
+
+GoogleSignIn -->|New user<br/>displayName set,<br/>examTrack=other| AboutYourself
+GoogleSignIn -->|Returning user<br/>examTrack persisted| Playground
+
+AboutYourself["CompleteProfileScreen<br/>/complete-profile<br/>(pre-filled from Google<br/>+ pick exam track)"]
+AboutYourself -->|examTrack saved| Playground
+
+end
+
+%% =========================================================
+%% Main Navigation Hubs
+%% =========================================================
+
+subgraph MainHubs
+
+Playground["PlaygroundScreen<br/>/playground"]
+Profile["ProfileScreen<br/>/profile"]
+Search["SearchScreen<br/>/search"]
+Notifications["NotificationScreen<br/>/notifications"]
+SettingsHub["SettingsScreen<br/>/settings"]
+
+end
+
+%% =========================================================
+%% Playground Feature Flow
+%% =========================================================
+
+subgraph PlaygroundFlow
+
+Playground --> WorldMap["WorldMapScreen<br/>/playground/map"]
+Playground --> Level["LevelScreen<br/>/playground/level?nodeId="]
+Playground --> Challenge["ChallengeScreen<br/>/playground/challenge?nodeId="]
+Playground --> Boss["BossChallengeScreen<br/>/playground/boss?nodeId="]
+
+Level --> LevelCompleted["LevelCompletedScreen<br/>/playground/level-completed?nodeId="]
+Challenge --> LevelCompleted
+Boss --> LevelCompleted
+
+LevelCompleted --> Playground
+
+%% Dynamic backend-driven playground (Phase 36/37, Quiz Hub integration)
+Playground -. "quizApiCategoriesStreamProvider" .-> CategoriesBackend[("Quiz Hub REST<br/>/api/v1/categories")]
+CategoriesBackend -. "category.id" .-> Playground
+Playground --> RewardClaim["RewardClaim<br/>(markCompleted + toast)"]
+Playground --> QuizOverviewNode["QuizOverviewScreen<br/>/quiz/overview?nodeId=&quizId=quizhub-{id}&categoryId={id}"]
+
+end
+
+%% =========================================================
+%% Lessons Feature Flow
+%% =========================================================
+
+subgraph LessonsFlow
+
+Level --> LessonOverview["LessonOverviewScreen<br/>/lessons?nodeId="]
+Challenge --> LessonOverview
+
+LessonOverview --> LessonDetail["LessonDetailScreen<br/>/lessons/detail?lessonId="]
+LessonOverview --> LessonReader["LessonReaderScreen<br/>/lessons/reader?lessonId="]
+LessonDetail --> LessonReader
+LessonReader --> LessonExamples["LessonExamplesScreen<br/>/lessons/examples?lessonId="]
+LessonExamples --> LessonSummary["LessonSummaryScreen<br/>/lessons/summary?lessonId="]
+LessonSummary --> QuizOverview
+
+end
+
+%% =========================================================
+%% Quiz Engine Flow
+%% =========================================================
+
+subgraph QuizEngineFlow
+
+Level --> QuizOverview["QuizOverviewScreen<br/>/quiz/overview?nodeId="]
+Challenge --> QuizOverview
+LessonSummary --> QuizOverview
+Playground --> QuizOverview
+
+%% When a Quiz Hub-backed node is tapped, QuizOverview is launched
+%% with both quizId (quizhub-{categoryId}) and categoryId. The
+%% engine adapter synthesises a quiz from /categories/{id}/questions.
+QuizOverview -. "quizhub-{id}" .-> QuizHub[("Quiz Hub REST<br/>/categories/{id}/questions")]
+QuizHub -. "QuizModel" .-> QuizOverview
+
+QuizOverview --> QuizPlay["QuizScreen<br/>/quiz/play?quizId="]
+
+QuizPlay --> QuizResult["QuizResultsScreen<br/>/quiz/result?quizId="]
+QuizPlay --> QuizPause["QuizPauseScreen<br/>/quiz/pause?quizId="]
+QuizPause --> QuizPlay
+QuizPause --> Playground
+
+QuizResult --> WeakTopics["WeakTopicsScreen<br/>/quiz/weak-topics?quizId="]
+QuizResult --> PerfBreakdown["PerformanceBreakdownScreen<br/>/quiz/performance-breakdown?quizId="]
+QuizResult --> Review["QuizReviewScreen<br/>/quiz/review?quizId="]
+QuizResult --> Playground
+
+end
+
+%% =========================================================
+%% Profile Sub-routes
+%% =========================================================
+
+subgraph ProfileFlow
+
+Profile --> ProfileAchievements["AchievementHistoryScreen<br/>/profile/achievements"]
+Profile --> ProfileStatistics["ProfileStatisticsScreen<br/>/profile/statistics"]
+Profile --> ProfileSubscription["SubscriptionScreen<br/>/profile/subscription"]
+Profile --> ProfileSettings["SettingsEntryScreen<br/>/profile/settings"]
+ProfileSettings --> SettingsHub
+ProfileSubscription --> SubscriptionPlans
+
+end
+
+%% =========================================================
+%% Gamification - Rewards
+%% =========================================================
+
+subgraph RewardsFlow
+
+Playground --> RewardsHub["RewardsHubScreen<br/>/rewards"]
+Profile --> RewardsHub
+
+RewardsHub --> DailyRewards["DailyRewardsScreen<br/>/rewards/daily"]
+RewardsHub --> Badges["BadgeCollectionScreen<br/>/rewards/badges"]
+RewardsHub --> RewardHistory["RewardHistoryScreen<br/>/rewards/history"]
+RewardsHub --> RewardChest["RewardChestScreen<br/>/rewards/chest"]
+
+end
+
+%% =========================================================
+%% Gamification - Missions
+%% =========================================================
+
+subgraph MissionsFlow
+
+Playground --> MissionsHub["MissionsHubScreen<br/>/missions"]
+Profile --> MissionsHub
+
+MissionsHub --> DailyMissions["DailyMissionsScreen<br/>/missions/daily"]
+MissionsHub --> WeeklyMissions["WeeklyMissionsScreen<br/>/missions/weekly"]
+MissionsHub --> MonthlyMissions["MonthlyMissionsScreen<br/>/missions/monthly"]
+
+end
+
+%% =========================================================
+%% Gamification - Streak
+%% =========================================================
+
+subgraph StreakFlow
+
+Playground --> Streak["StreakScreen<br/>/streak"]
+Profile --> Streak
+
+Streak --> StreakCalendar["StreakCalendarScreen<br/>/streak/calendar"]
+Streak --> StreakRecovery["StreakRecoveryScreen<br/>/streak/recovery"]
+
+end
+
+%% =========================================================
+%% Leaderboard
+%% =========================================================
+
+subgraph LeaderboardFlow
+
+Playground --> Leaderboard["LeaderboardScreen<br/>/leaderboard"]
+Profile --> Leaderboard
+
+Leaderboard --> LeaderboardDetail["LeaderboardDetailScreen<br/>/leaderboard/:scope"]
+
+end
+
+%% =========================================================
+%% Review (post-quiz question review)
+%% =========================================================
+
+subgraph ReviewFlow
+
+Review --> ReviewDetail["ReviewDetailScreen<br/>/review/detail?questionId=&quizId="]
+Profile --> Review["ReviewScreen<br/>/review"]
+
+end
+
+%% =========================================================
+%% Bookmarks & Notes
+%% =========================================================
+
+subgraph BookmarksFlow
+
+Profile --> Bookmarks["BookmarksScreen<br/>/bookmarks"]
+Bookmarks -->|"?route=&params="| BookmarkDetail["BookmarkDetailScreen<br/>/bookmarks?route=&param="]
+
+end
+
+subgraph NotesFlow
+
+Profile --> Notes["NotesScreen<br/>/notes"]
+Notes --> NoteCreate["CreateNoteScreen<br/>/notes/create"]
+Notes -->|"?id="| NoteEdit["EditNoteScreen<br/>/notes/edit?id="]
+Notes -->|"?id="| NoteDetail["NoteDetailScreen<br/>/notes/detail?id="]
+
+end
+
+%% =========================================================
+%% Statistics
+%% =========================================================
+
+subgraph StatisticsFlow
+
+Profile --> Statistics["StatisticsScreen<br/>/statistics"]
+
+end
+
+%% =========================================================
+%% AI Tutor
+%% =========================================================
+
+subgraph AiTutorFlow
+
+Profile --> AiTutor["AiTutorScreen<br/>/ai-tutor"]
+Playground --> AiTutor
+
+AiTutor --> AiHint["AiHintScreen<br/>/ai-tutor/hint?questionId="]
+AiTutor --> AiExplain["AiExplainScreen<br/>/ai-tutor/explain"]
+AiTutor --> AiSimplify["AiSimplifyScreen<br/>/ai-tutor/simplify"]
+AiTutor --> AiSummary["AiSummaryScreen<br/>/ai-tutor/summary"]
+AiTutor --> AiFlashcards["AiFlashcardsScreen<br/>/ai-tutor/flashcards"]
+AiTutor --> AiStudyPlan["AiStudyPlanScreen<br/>/ai-tutor/study-plan"]
+AiTutor --> AiQuestions["AiQuestionsScreen<br/>/ai-tutor/questions"]
+AiTutor -->|"?conversationId="| AiChat["AiChatScreen<br/>/ai-tutor/chat?conversationId="]
+AiTutor --> AiHistory["AiHistoryScreen<br/>/ai-tutor/history"]
+
+QuizPlay --> AiHint
+ReviewDetail --> AiExplain
+LessonReader --> AiSummary
+
+end
+
+%% =========================================================
+%% Settings Hub
+%% =========================================================
+
+subgraph SettingsFlow
+
+SettingsHub --> ThemeSettings["ThemeSettingsScreen<br/>/settings/theme"]
+SettingsHub --> LanguageSettings["LanguageSettingsScreen<br/>/settings/language"]
+SettingsHub --> NotifSettings["NotificationSettingsScreen<br/>/settings/notifications"]
+SettingsHub --> PrivacySettings["PrivacySettingsScreen<br/>/settings/privacy"]
+SettingsHub --> AccessibilitySettings["AccessibilitySettingsScreen<br/>/settings/accessibility"]
+SettingsHub --> AboutScreen["AboutScreen<br/>/settings/about"]
+
+end
+
+%% =========================================================
+%% Subscription
+%% =========================================================
+
+subgraph SubscriptionFlow
+
+SubscriptionPlans["SubscriptionPlansScreen<br/>/subscription"] --> PlanComparison["PlanComparisonScreen<br/>/subscription/comparison"]
+PlanComparison --> Purchase["PurchaseFlowScreen<br/>/subscription/purchase"]
+Purchase --> Restore["RestorePurchaseScreen<br/>/subscription/restore"]
+Restore --> Profile
+
+end
+
+%% =========================================================
+%% Offline Downloads
+%% =========================================================
+
+subgraph OfflineFlow
+
+SettingsHub --> OfflineDownloads["OfflineDownloadsScreen<br/>/offline/downloads"]
+
+OfflineDownloads --> OfflineLessons["DownloadedLessonsScreen<br/>/offline/lessons"]
+OfflineDownloads --> OfflineQuestions["DownloadedQuestionsScreen<br/>/offline/questions"]
+OfflineDownloads --> OfflineStorage["OfflineStorageScreen<br/>/offline/storage"]
+OfflineDownloads --> OfflineSync["OfflineSyncScreen<br/>/offline/sync"]
+
+end
+
+%% =========================================================
+%% Developer Tools
+%% =========================================================
+
+subgraph DeveloperTools
+
+WidgetBuilder["WidgetBuilderScreen<br/>/widget-builder"]
+
+end

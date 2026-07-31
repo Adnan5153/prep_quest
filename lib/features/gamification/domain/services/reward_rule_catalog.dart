@@ -1,7 +1,12 @@
 import 'package:flutter/foundation.dart';
 
+import '../../../../core/services/level_curve.dart' as core;
+import '../../../../core/services/level_curve.dart' show LevelSnapshot;
 import '../entities/level_progress.dart';
 import '../enums/reward_enums.dart';
+
+typedef CoreLevelCurve = core.LevelCurve;
+typedef CoreLevelSnapshot = LevelSnapshot;
 
 /// Data-driven rule for the reward engine.
 ///
@@ -50,23 +55,13 @@ class RewardDrop {
   final double probability;
 }
 
-/// Level-up curve — XP required for level N+1.
-@immutable
-class LevelCurve {
-  const LevelCurve({this.base = 100, this.growth = 1.35});
-
-  final int base;
-  final double growth;
-
-  int xpRequiredFor(int level) {
-    if (level <= 1) return base;
-    double xp = base.toDouble();
-    for (int i = 1; i < level; i++) {
-      xp *= growth;
-    }
-    return xp.round();
-  }
-}
+/// Re-exported as [LevelCurve] for backward compatibility with
+/// existing call sites in the gamification feature. The canonical
+/// implementation lives in `lib/core/services/level_curve.dart` and
+/// is the single source of truth consumed by both the gamification
+/// engine and the canonical quiz-completion funnel. Tests may still
+/// pass an alternative curve via the [levelFor] parameter.
+typedef LevelCurve = CoreLevelCurve;
 
 class RewardRuleCatalog {
   const RewardRuleCatalog();
@@ -139,19 +134,20 @@ class RewardRuleCatalog {
 
   /// Pure function: applies a level curve to a current XP value and
   /// returns the new [LevelProgress]. Idempotent and side-effect free.
-  LevelProgress levelFor(int totalXP, {LevelCurve curve = const LevelCurve()}) {
-    int level = 1;
-    int consumed = 0;
-    int nextLevelXP = curve.xpRequiredFor(1);
-    while (totalXP - consumed >= nextLevelXP) {
-      consumed += nextLevelXP;
-      level += 1;
-      nextLevelXP = curve.xpRequiredFor(level);
-    }
+  ///
+  /// Uses the canonical [LevelCurve.defaultCurve] when [curve] is
+  /// not supplied. The growth multiplier is unified across the
+  /// gamification engine and the canonical funnel (1.25× — see
+  /// `lib/core/services/level_curve.dart`).
+  LevelProgress levelFor(
+    int totalXP, {
+    CoreLevelCurve curve = CoreLevelCurve.defaultCurve,
+  }) {
+    final CoreLevelSnapshot snapshot = curve.compute(totalXP);
     return LevelProgress(
-      currentLevel: level,
-      currentXP: totalXP - consumed,
-      nextLevelXP: nextLevelXP,
+      currentLevel: snapshot.level,
+      currentXP: snapshot.xpInLevel,
+      nextLevelXP: snapshot.xpForNext,
     );
   }
 }

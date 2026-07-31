@@ -4,11 +4,6 @@ import 'package:go_router/go_router.dart';
 import 'core/constants/app_strings.dart';
 import 'features/authentication/presentation/providers/auth_providers.dart';
 import 'features/authentication/presentation/screens/complete_profile/complete_profile_screen.dart';
-import 'features/authentication/presentation/screens/email_verification/email_verification_screen.dart';
-import 'features/authentication/presentation/screens/forgot_password/forgot_password_screen.dart';
-import 'features/authentication/presentation/screens/login/login_screen.dart';
-import 'features/authentication/presentation/screens/otp_verification/otp_verification_screen.dart';
-import 'features/authentication/presentation/screens/register/register_screen.dart';
 import 'features/authentication/presentation/screens/splash/splash_screen.dart';
 import 'features/authentication/presentation/screens/welcome/welcome_screen.dart';
 import 'features/authentication/presentation/states/auth_state.dart';
@@ -207,21 +202,17 @@ abstract class AppRoutes {
   // Authentication flow
   static const String splash = '/splash';
   static const String welcome = '/welcome';
-  static const String login = '/login';
-  static const String register = '/register';
-  static const String forgotPassword = '/forgot-password';
-  static const String phoneOtp = '/phone-otp';
-  static const String emailVerification = '/email-verification';
   static const String completeProfile = '/complete-profile';
 }
 
 /// Paths that an unauthenticated visitor is allowed to access.
+///
+/// Collapsed to just the welcome screen — the rest of the auth flow
+/// (login, register, phone OTP, email verification) has been
+/// replaced by the single Google Sign-In CTA on
+/// [AppRoutes.welcome].
 const List<String> _unauthenticatedPaths = <String>[
   AppRoutes.welcome,
-  AppRoutes.login,
-  AppRoutes.register,
-  AppRoutes.forgotPassword,
-  AppRoutes.phoneOtp,
 ];
 
 /// Builds the application's [GoRouter].
@@ -271,8 +262,13 @@ GoRouter createAppRouter({ValueNotifier<int>? refreshListenable}) {
           }
           return null;
         case AuthStatus.emailVerificationRequired:
-          if (path != AppRoutes.emailVerification) {
-            return AppRoutes.emailVerification;
+          // Defensive fallback — Google sign-in always returns a
+          // verified email so this status is unreachable in practice,
+          // but the redirect lands on the profile-completion screen
+          // (which surfaces the verification UI as a banner if needed)
+          // rather than spinning forever on a missing route.
+          if (path != AppRoutes.completeProfile) {
+            return AppRoutes.completeProfile;
           }
           return null;
         case AuthStatus.authenticated:
@@ -299,36 +295,6 @@ GoRouter createAppRouter({ValueNotifier<int>? refreshListenable}) {
         name: AppRoutes.welcome,
         builder: (BuildContext context, GoRouterState state) =>
             const WelcomeScreen(),
-      ),
-      GoRoute(
-        path: AppRoutes.login,
-        name: AppRoutes.login,
-        builder: (BuildContext context, GoRouterState state) =>
-            const LoginScreen(),
-      ),
-      GoRoute(
-        path: AppRoutes.register,
-        name: AppRoutes.register,
-        builder: (BuildContext context, GoRouterState state) =>
-            const RegisterScreen(),
-      ),
-      GoRoute(
-        path: AppRoutes.forgotPassword,
-        name: AppRoutes.forgotPassword,
-        builder: (BuildContext context, GoRouterState state) =>
-            const ForgotPasswordScreen(),
-      ),
-      GoRoute(
-        path: AppRoutes.phoneOtp,
-        name: AppRoutes.phoneOtp,
-        builder: (BuildContext context, GoRouterState state) =>
-            const OtpVerificationScreen(),
-      ),
-      GoRoute(
-        path: AppRoutes.emailVerification,
-        name: AppRoutes.emailVerification,
-        builder: (BuildContext context, GoRouterState state) =>
-            const EmailVerificationScreen(),
       ),
       GoRoute(
         path: AppRoutes.completeProfile,
@@ -360,36 +326,56 @@ GoRouter createAppRouter({ValueNotifier<int>? refreshListenable}) {
       GoRoute(
         path: AppRoutes.level,
         name: AppRoutes.level,
+        redirect: (BuildContext context, GoRouterState state) {
+          final String? nodeId = state.uri.queryParameters['nodeId'];
+          return (nodeId == null || nodeId.isEmpty)
+              ? AppRoutes.playground
+              : null;
+        },
         builder: (BuildContext context, GoRouterState state) {
-          final String nodeId =
-              state.uri.queryParameters['nodeId'] ?? 'node-2';
+          final String nodeId = state.uri.queryParameters['nodeId'] ?? '';
           return LevelScreen(nodeId: nodeId);
         },
       ),
       GoRoute(
         path: AppRoutes.challenge,
         name: AppRoutes.challenge,
+        redirect: (BuildContext context, GoRouterState state) {
+          final String? nodeId = state.uri.queryParameters['nodeId'];
+          return (nodeId == null || nodeId.isEmpty)
+              ? AppRoutes.playground
+              : null;
+        },
         builder: (BuildContext context, GoRouterState state) {
-          final String nodeId =
-              state.uri.queryParameters['nodeId'] ?? 'node-2';
+          final String nodeId = state.uri.queryParameters['nodeId'] ?? '';
           return ChallengeScreen(nodeId: nodeId);
         },
       ),
       GoRoute(
         path: AppRoutes.bossChallenge,
         name: AppRoutes.bossChallenge,
+        redirect: (BuildContext context, GoRouterState state) {
+          final String? nodeId = state.uri.queryParameters['nodeId'];
+          return (nodeId == null || nodeId.isEmpty)
+              ? AppRoutes.playground
+              : null;
+        },
         builder: (BuildContext context, GoRouterState state) {
-          final String nodeId =
-              state.uri.queryParameters['nodeId'] ?? 'node-boss';
+          final String nodeId = state.uri.queryParameters['nodeId'] ?? '';
           return BossChallengeScreen(nodeId: nodeId);
         },
       ),
       GoRoute(
         path: AppRoutes.levelCompleted,
         name: AppRoutes.levelCompleted,
+        redirect: (BuildContext context, GoRouterState state) {
+          final String? nodeId = state.uri.queryParameters['nodeId'];
+          return (nodeId == null || nodeId.isEmpty)
+              ? AppRoutes.playground
+              : null;
+        },
         builder: (BuildContext context, GoRouterState state) {
-          final String nodeId =
-              state.uri.queryParameters['nodeId'] ?? 'node-2';
+          final String nodeId = state.uri.queryParameters['nodeId'] ?? '';
           return LevelCompletedScreen(nodeId: nodeId);
         },
       ),

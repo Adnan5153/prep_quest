@@ -69,6 +69,16 @@ class AuthRepositoryImpl implements AuthRepository {
   }
 
   @override
+  Future<Result<AuthSessionEntity>> signInWithGoogle() async {
+    try {
+      final session = await _remote.signInWithGoogle();
+      return Result.success(session.toEntity());
+    } catch (error, stackTrace) {
+      return Result.failure(ErrorHandler.map(error, stackTrace));
+    }
+  }
+
+  @override
   Future<Result<void>> sendPasswordReset({required String email}) async {
     try {
       await _remote.sendPasswordReset(email: email);

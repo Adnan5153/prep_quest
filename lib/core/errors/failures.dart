@@ -59,3 +59,40 @@ class CacheFailure extends Failure {
 class UnknownFailure extends Failure {
   const UnknownFailure(super.message, {super.cause});
 }
+
+/// A reward with the same `{source}:{sourceId}` key was already
+/// applied to the user's coin ledger. Returned by [CoinService.grant]
+/// when a duplicate submission is detected (replay, retry, or
+/// double-fire from a synchronously-mounted listener).
+class DuplicateRewardFailure extends Failure {
+  const DuplicateRewardFailure(super.message, {required this.sourceKey, super.cause});
+
+  final String sourceKey;
+}
+
+/// The user attempted to spend more coins than their current balance.
+/// Returned by [CoinService.spend] when the resulting balance would
+/// go below zero. The coin economy never produces a negative balance.
+class InsufficientCoinsFailure extends Failure {
+  const InsufficientCoinsFailure(super.message, {required this.shortfall, super.cause});
+
+  /// Positive integer — how many coins the user was missing.
+  final int shortfall;
+}
+
+/// A mission progress update was rejected because the same
+/// `{uid}:{missionId}:{sessionId}` triple was already applied. Used
+/// by [MissionProgressService.recordAttempt] to dedup replays.
+class DuplicateMissionAttemptFailure extends Failure {
+  const DuplicateMissionAttemptFailure(super.message, {required this.sessionKey, super.cause});
+
+  final String sessionKey;
+}
+
+/// A mission completion was rejected because the user is currently
+/// in a guest session and the write would have failed Firestore
+/// authorization. The local mirror still updates; the failure is
+/// surfaced so the controller can route the replay on login.
+class GuestMissionWriteFailure extends Failure {
+  const GuestMissionWriteFailure(super.message, {super.cause});
+}
